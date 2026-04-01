@@ -1,0 +1,30 @@
+steps:
+  - name: 'gcr.io/kaniko-project/executor:latest'
+    args:
+      - --destination=gcr.io/$PROJECT_ID/emporio-gelada:$COMMIT_SHA
+      - --destination=gcr.io/$PROJECT_ID/emporio-gelada:latest
+      - --cache=true
+      - --cache-ttl=24h
+      - --dockerfile=Dockerfile.prod
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - run
+      - deploy
+      - emporio-gelada
+      - --image=gcr.io/$PROJECT_ID/emporio-gelada:$COMMIT_SHA
+      - --region=southamerica-east1
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=5000
+      - --network=default
+      - --subnet=default
+      - --vpc-egress=private-ranges-only
+      - --memory=256Mi
+      - --cpu=1
+      - --max-instances=1
+      - --min-instances=0
+      - --concurrency=25
+options:
+  logging: CLOUD_LOGGING_ONLY
