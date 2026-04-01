@@ -763,7 +763,7 @@ export default function Home() {
       </section>
 
       {/* Age Warning Banner */}
-      <div className="py-4 px-6 text-center text-xs text-gray-500 bg-black/30">
+      <div className="py-4 px-6 text-center text-xs text-gray-500" style={{ backgroundColor: "#111111" }}>
         <div className="flex items-center justify-center gap-2">
           <Shield className="w-4 h-4 flex-shrink-0" style={{ color: "#c9a96e" }} />
           <span>{storeConfig.footer.ageWarning}</span>

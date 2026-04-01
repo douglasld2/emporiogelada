@@ -49,14 +49,17 @@ export function Navigation({ forceDark }: NavigationProps) {
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-300 pointer-events-none ${
+        className={`fixed top-0 left-0 right-0 z-40 pointer-events-none ${
           isNavVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
         } ${
           isDark
             ? "py-6 border-b border-white/10"
             : "py-4 bg-white border-b border-gray-200"
         }`}
-        style={isDark ? { backgroundColor: "rgba(0,0,0,0.75)", backdropFilter: "blur(12px)" } : {}}
+        style={{
+          ...(isDark ? { backgroundColor: "rgba(0,0,0,0.72)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : {}),
+          transition: "transform 300ms ease, opacity 300ms ease",
+        }}
       >
         <div className="container mx-auto px-6 flex items-center justify-between">
           {/* Left: Menu + links */}

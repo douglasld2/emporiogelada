@@ -111,8 +111,11 @@
   * {
     @apply border-border;
   }
+  html, body {
+    background-color: #000000; /* Prevents white flash on overscroll and initial load (mobile) */
+  }
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans antialiased text-foreground;
     overflow-x: hidden; /* Prevent horizontal scroll from animations */
   }
   h1, h2, h3, h4, h5, h6 {
