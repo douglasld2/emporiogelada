@@ -84,9 +84,6 @@ export default function LoginPage() {
             <div className="text-center text-sm text-gray-600 pt-2">
                 Não tem uma conta? <Link href="/register"><span className="font-medium text-black hover:underline cursor-pointer">Cadastre-se aqui</span></Link>
             </div>
-            <div className="text-center text-xs text-gray-400 mt-6 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                💡 Dica: Use <span className="font-mono font-medium text-gray-600">admin@emporiogelada.com.br</span> para acessar o Painel Admin
-            </div>
         </form>
       </div>
     </div>
