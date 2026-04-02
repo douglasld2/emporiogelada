@@ -14,7 +14,7 @@ steps:
       - deploy
       - emporio-gelada
       - --image=gcr.io/$PROJECT_ID/emporio-gelada:$COMMIT_SHA
-      - --region=southamerica-east1
+      - --region=us-central1
       - --platform=managed
       - --allow-unauthenticated
       - --port=5000
