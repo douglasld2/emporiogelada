@@ -4,7 +4,7 @@ import { useStore } from '@/lib/StoreContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Edit2, X, Tag } from 'lucide-react';
+import { Plus, Trash2, Edit2, X, Tag, AlertTriangle } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ImageUploader, MultiImageUploader } from '@/components/ImageUploader';
@@ -42,6 +42,7 @@ export default function AdminProducts() {
     height: '10',
     width: '15',
     length: '20',
+    minStock: '',
   });
 
   const [newSizeLabel, setNewSizeLabel] = useState('');
@@ -82,6 +83,7 @@ export default function AdminProducts() {
         height: product.height ?? '10',
         width: product.width ?? '15',
         length: product.length ?? '20',
+        minStock: (product as any).minStock != null ? String((product as any).minStock) : '',
       });
     } else {
       setEditingId(null);
@@ -102,6 +104,7 @@ export default function AdminProducts() {
         origin: '',
         isKit: false,
         isActive: true,
+        minStock: '',
       });
     }
     setNewSizeLabel('');
@@ -131,12 +134,13 @@ export default function AdminProducts() {
 
   const handleSubmit = async () => {
     try {
-      const filteredSizes: SizeQuantity = {};
-      Object.entries(formData.sizes).forEach(([size, qty]) => {
-        if (typeof qty === 'number' && qty > 0) {
-          filteredSizes[size] = qty;
-        }
-      });
+      // Save ALL size keys (including qty=0) so stock tracking works correctly.
+      // A product with sizes defined but all at 0 = out of stock.
+      // A product with NO sizes at all = unlimited (no stock tracking).
+      const allSizeKeys = Object.keys(formData.sizes);
+      const sizesJson: SizeQuantity = {};
+      allSizeKeys.forEach(k => { sizesJson[k] = typeof formData.sizes[k] === 'number' ? formData.sizes[k] : 0; });
+      const hasSizes = allSizeKeys.length > 0;
 
       const productData: any = {
         name: formData.name,
@@ -145,7 +149,7 @@ export default function AdminProducts() {
         images: formData.images.length > 0 ? formData.images : null,
         collectionId: formData.collectionId,
         description: formData.description || null,
-        sizes: Object.keys(filteredSizes).length > 0 ? JSON.stringify(filteredSizes) : null,
+        sizes: hasSizes ? JSON.stringify(sizesJson) : null,
         productDetails: formData.productDetails || null,
         shippingReturns: formData.shippingReturns || null,
         brand: formData.brand || null,
@@ -158,6 +162,8 @@ export default function AdminProducts() {
         height: formData.height ? formData.height.toString() : '10',
         width: formData.width ? formData.width.toString() : '15',
         length: formData.length ? formData.length.toString() : '20',
+        minStock: formData.minStock !== '' ? parseInt(formData.minStock) : null,
+        stockAlertSent: false,
       };
 
       if (editingId) {
@@ -172,14 +178,30 @@ export default function AdminProducts() {
   };
 
   const getTotalStock = (product: Product) => {
-    if (!product.sizes) return '-';
-    try {
-      const sizes = JSON.parse(product.sizes) as SizeQuantity;
-      const total = Object.values(sizes).reduce((sum, qty) => sum + qty, 0);
-      return total;
-    } catch {
-      return '-';
+    if (product.sizes) {
+      try {
+        const sizes = JSON.parse(product.sizes) as SizeQuantity;
+        const keys = Object.keys(sizes);
+        if (keys.length === 0) return '-';
+        return keys.reduce((sum, k) => sum + (sizes[k] || 0), 0);
+      } catch {
+        return '-';
+      }
     }
+    const s = (product as any).stock;
+    if (s != null) return s;
+    return '-';
+  };
+
+  const isOutOfStock = (product: Product) => {
+    const total = getTotalStock(product);
+    return typeof total === 'number' && total === 0;
+  };
+
+  const isLowStock = (product: Product) => {
+    const total = getTotalStock(product);
+    const minStock = (product as any).minStock;
+    return typeof total === 'number' && total > 0 && minStock != null && total <= minStock;
   };
 
   const formatPrice = (price: string | number) => {
@@ -267,6 +289,18 @@ export default function AdminProducts() {
                             Inativo
                           </span>
                         )}
+                        {isOutOfStock(product) && (
+                          <span className="text-xs px-1.5 py-0.5 rounded flex items-center gap-1" style={{ backgroundColor: "rgba(139,26,26,0.1)", color: "#8b1a1a" }} data-testid={`badge-admin-out-of-stock-${product.id}`}>
+                            <AlertTriangle className="w-3 h-3" />
+                            Sem Estoque
+                          </span>
+                        )}
+                        {isLowStock(product) && (
+                          <span className="text-xs px-1.5 py-0.5 rounded flex items-center gap-1" style={{ backgroundColor: "rgba(201,100,0,0.1)", color: "#c96400" }} data-testid={`badge-admin-low-stock-${product.id}`}>
+                            <AlertTriangle className="w-3 h-3" />
+                            Estoque Baixo
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -279,8 +313,19 @@ export default function AdminProducts() {
                     <span className="font-medium">{formatPrice(product.price)}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-gray-600 hidden md:table-cell">
-                  {getTotalStock(product)}
+                <td className="px-4 py-3 hidden md:table-cell">
+                  <span className={
+                    isOutOfStock(product)
+                      ? 'font-bold text-red-700'
+                      : isLowStock(product)
+                        ? 'font-semibold'
+                        : 'text-gray-600'
+                  } style={isLowStock(product) ? { color: '#c96400' } : {}}>
+                    {getTotalStock(product)}
+                    {(product as any).minStock != null && (
+                      <span className="text-xs font-normal ml-1 text-gray-400">/ mín {(product as any).minStock}</span>
+                    )}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-right">
                   <div className="flex justify-end gap-2">
@@ -479,6 +524,27 @@ export default function AdminProducts() {
                   <Button type="button" onClick={handleAddCustomSize} className="bg-gray-100 text-gray-700 hover:bg-gray-200 h-8 px-2" data-testid="button-add-size">
                     <Plus className="w-4 h-4" />
                   </Button>
+                </div>
+              </div>
+
+              {/* Stock alert */}
+              <div className="border rounded-lg p-4 space-y-2" style={{ borderColor: "rgba(201,169,110,0.3)", backgroundColor: "rgba(201,169,110,0.03)" }}>
+                <h4 className="text-xs font-medium text-gray-600 uppercase tracking-wide flex items-center gap-1.5">
+                  <AlertTriangle className="w-3.5 h-3.5" style={{ color: "#c9a96e" }} />
+                  Alerta de Estoque
+                </h4>
+                <div className="space-y-1">
+                  <label className="text-xs text-gray-500">Estoque Mínimo para Alerta</label>
+                  <Input
+                    type="number"
+                    min="0"
+                    value={formData.minStock}
+                    onChange={e => setFormData({ ...formData, minStock: e.target.value })}
+                    placeholder="Ex: 5"
+                    className="h-9 text-sm"
+                    data-testid="input-min-stock"
+                  />
+                  <p className="text-[10px] text-gray-400">Envia email ao administrador quando o estoque atingir esse número. Deixe vazio para não receber alertas.</p>
                 </div>
               </div>
 

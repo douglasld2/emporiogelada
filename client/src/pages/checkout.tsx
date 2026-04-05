@@ -26,6 +26,8 @@ import {
   AlertCircle,
   Wallet as WalletIcon,
   Gift,
+  FileText,
+  Building2,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import type { Address } from "@shared/schema";
@@ -176,6 +178,25 @@ export default function Checkout() {
     shippingPhone: "",
   });
 
+  const [fiscalData, setFiscalData] = useState({
+    personType: "PF" as "PF" | "PJ",
+    cpf: "",
+    cnpj: "",
+    razaoSocial: "",
+    inscricaoEstadual: "",
+  });
+
+  const formatCPF = (v: string) => v.replace(/\D/g, "").slice(0, 11)
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+
+  const formatCNPJ = (v: string) => v.replace(/\D/g, "").slice(0, 14)
+    .replace(/(\d{2})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1/$2")
+    .replace(/(\d{4})(\d{1,2})$/, "$1-$2");
+
   const { data: addresses = [] } = useQuery<Address[]>({
     queryKey: ["addresses"],
     queryFn: async () => {
@@ -205,6 +226,15 @@ export default function Checkout() {
         shippingEmail: user.email,
         shippingName: user.name || "",
       }));
+      // Pre-fill fiscal data from user profile
+      const u = user as any;
+      setFiscalData({
+        personType: u.personType ?? "PF",
+        cpf: u.cpf ? formatCPF(u.cpf) : "",
+        cnpj: u.cnpj ? formatCNPJ(u.cnpj) : "",
+        razaoSocial: u.razaoSocial ?? "",
+        inscricaoEstadual: u.inscricaoEstadual ?? "",
+      });
     }
   }, [user]);
 
@@ -246,6 +276,13 @@ export default function Checkout() {
             name: shippingInfo.shippingName,
           },
           shippingInfo,
+          fiscalData: {
+            personType: fiscalData.personType,
+            cpf: fiscalData.personType === "PF" ? fiscalData.cpf.replace(/\D/g, "") : null,
+            cnpj: fiscalData.personType === "PJ" ? fiscalData.cnpj.replace(/\D/g, "") : null,
+            razaoSocial: fiscalData.personType === "PJ" ? fiscalData.razaoSocial : null,
+            inscricaoEstadual: fiscalData.personType === "PJ" ? fiscalData.inscricaoEstadual : null,
+          },
           shippingCost: shippingCost,
           shippingMethod: selectedShipping?.serviceCode?.startsWith("loggi")
             ? `Loggi - ${selectedShipping?.service || "Express"}`
@@ -517,6 +554,13 @@ export default function Checkout() {
         body: JSON.stringify({
           items: orderItems,
           shippingInfo,
+          fiscalData: {
+            personType: fiscalData.personType,
+            cpf: fiscalData.personType === "PF" ? fiscalData.cpf.replace(/\D/g, "") : null,
+            cnpj: fiscalData.personType === "PJ" ? fiscalData.cnpj.replace(/\D/g, "") : null,
+            razaoSocial: fiscalData.personType === "PJ" ? fiscalData.razaoSocial : null,
+            inscricaoEstadual: fiscalData.personType === "PJ" ? fiscalData.inscricaoEstadual : null,
+          },
           totalAmount: total.toString(),
           cashbackDiscount:
             cashbackDiscount > 0 ? cashbackDiscount.toString() : undefined,
@@ -1014,6 +1058,69 @@ export default function Checkout() {
                   </div>
                 </>
               )}
+
+              {/* Fiscal / Nota Fiscal section */}
+              <div className="mt-8 pt-6 border-t border-gray-100">
+                <div className="flex items-center gap-2 mb-5">
+                  <FileText className="w-4 h-4 text-gray-500" />
+                  <h2 className="text-base font-medium text-gray-800">Dados para Nota Fiscal</h2>
+                </div>
+
+                {/* Person type toggle */}
+                <div className="flex gap-2 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setFiscalData(f => ({ ...f, personType: "PF" }))}
+                    className={`flex-1 py-2.5 px-4 rounded-lg border text-sm font-medium transition-all ${fiscalData.personType === "PF" ? "border-black bg-black text-white" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
+                    data-testid="button-fiscal-pf"
+                  >
+                    Pessoa Física (CPF)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFiscalData(f => ({ ...f, personType: "PJ" }))}
+                    className={`flex-1 py-2.5 px-4 rounded-lg border text-sm font-medium transition-all flex items-center justify-center gap-1.5 ${fiscalData.personType === "PJ" ? "border-black bg-black text-white" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
+                    data-testid="button-fiscal-pj"
+                  >
+                    <Building2 className="w-3.5 h-3.5" />
+                    Pessoa Jurídica (CNPJ)
+                  </button>
+                </div>
+
+                {fiscalData.personType === "PF" ? (
+                  <Input
+                    placeholder="CPF (opcional)"
+                    value={fiscalData.cpf}
+                    onChange={e => setFiscalData(f => ({ ...f, cpf: formatCPF(e.target.value) }))}
+                    className="rounded-lg border border-gray-300 h-12 focus:border-black focus:ring-1 focus:ring-black"
+                    data-testid="input-fiscal-cpf"
+                  />
+                ) : (
+                  <div className="space-y-3">
+                    <Input
+                      placeholder="CNPJ"
+                      value={fiscalData.cnpj}
+                      onChange={e => setFiscalData(f => ({ ...f, cnpj: formatCNPJ(e.target.value) }))}
+                      className="rounded-lg border border-gray-300 h-12 focus:border-black focus:ring-1 focus:ring-black"
+                      data-testid="input-fiscal-cnpj"
+                    />
+                    <Input
+                      placeholder="Razão Social"
+                      value={fiscalData.razaoSocial}
+                      onChange={e => setFiscalData(f => ({ ...f, razaoSocial: e.target.value }))}
+                      className="rounded-lg border border-gray-300 h-12 focus:border-black focus:ring-1 focus:ring-black"
+                      data-testid="input-fiscal-razao-social"
+                    />
+                    <Input
+                      placeholder="Inscrição Estadual (opcional)"
+                      value={fiscalData.inscricaoEstadual}
+                      onChange={e => setFiscalData(f => ({ ...f, inscricaoEstadual: e.target.value }))}
+                      className="rounded-lg border border-gray-300 h-12 focus:border-black focus:ring-1 focus:ring-black"
+                      data-testid="input-fiscal-inscricao-estadual"
+                    />
+                  </div>
+                )}
+              </div>
 
               <Button
                 onClick={() => {

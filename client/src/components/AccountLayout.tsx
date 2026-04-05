@@ -1,7 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Navigation } from '@/components/Navigation';
-import { Package, User, LifeBuoy, MapPin, LogOut, Menu, X, Gift } from 'lucide-react';
+import { Package, User, LifeBuoy, MapPin, LogOut, Menu, X, Gift, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/AuthContext';
 
 export function AccountLayout({ children }: { children: ReactNode }) {
@@ -13,6 +13,7 @@ export function AccountLayout({ children }: { children: ReactNode }) {
     { icon: User, label: 'Visão Geral', href: '/account' },
     { icon: Package, label: 'Pedidos', href: '/account/orders' },
     { icon: MapPin, label: 'Endereços', href: '/account/addresses' },
+    { icon: FileText, label: 'Meus Dados', href: '/account/profile' },
     { icon: Gift, label: 'Indicações', href: '/account/referral' },
     { icon: LifeBuoy, label: 'Suporte', href: '/account/support' },
   ];

@@ -19,6 +19,13 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull().default("customer"),
   name: text("name"),
+  phone: text("phone"),
+  // Fiscal / Nota Fiscal fields
+  personType: text("person_type").notNull().default("PF"), // "PF" or "PJ"
+  cpf: text("cpf"),                      // Pessoa Física
+  cnpj: text("cnpj"),                    // Pessoa Jurídica
+  razaoSocial: text("razao_social"),     // Company name (PJ)
+  inscricaoEstadual: text("inscricao_estadual"), // State registration (PJ, optional)
   emailVerified: boolean("email_verified").notNull().default(false),
   emailVerificationToken: text("email_verification_token"),
   emailVerificationExpires: timestamp("email_verification_expires"),
@@ -113,6 +120,10 @@ export const products = pgTable("products", {
   // Kit
   isKit: boolean("is_kit").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
+  // Stock control (for products without size variants)
+  stock: integer("stock"),
+  minStock: integer("min_stock"),
+  stockAlertSent: boolean("stock_alert_sent").notNull().default(false),
 });
 
 export const productSizeStock = pgTable("product_size_stock", {
@@ -204,6 +215,12 @@ export const orders = pgTable("orders", {
   ),
   shippingMethod: text("shipping_method"),
   paymentMethod: text("payment_method"),
+  // Fiscal / Nota Fiscal fields (stored per order)
+  fiscalPersonType: text("fiscal_person_type"),   // "PF" or "PJ"
+  fiscalCpf: text("fiscal_cpf"),
+  fiscalCnpj: text("fiscal_cnpj"),
+  fiscalRazaoSocial: text("fiscal_razao_social"),
+  fiscalInscricaoEstadual: text("fiscal_inscricao_estadual"),
   trackingCode: text("tracking_code"),
   loggiKey: text("loggi_key"),
   loggiShipmentId: text("loggi_shipment_id"),

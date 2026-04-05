@@ -24,7 +24,7 @@ import {
   type ReferralCode, type Referral,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, or, desc, sql, gte, lte, count, sum, inArray } from "drizzle-orm";
+import { eq, and, or, desc, sql, gte, lte, count, sum, inArray, isNotNull, isNull } from "drizzle-orm";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -66,6 +66,7 @@ export interface IStorage {
   clearCart(userId: string): Promise<void>;
   
   getUserOrders(userId: string, userEmail?: string): Promise<Order[]>;
+  linkGuestOrdersToUser(email: string, userId: string): Promise<void>;
   getOrder(id: string): Promise<Order | undefined>;
   getOrderItems(orderId: string): Promise<OrderItem[]>;
   createOrder(order: InsertOrder, items: InsertOrderItem[]): Promise<Order>;
@@ -109,7 +110,13 @@ export interface IStorage {
   getSizeStock(productId: string, size: string): Promise<ProductSizeStock | undefined>;
   setSizeStock(productId: string, size: string, stock: number): Promise<ProductSizeStock>;
   decrementSizeStock(items: Array<{ productId: string; size: string; quantity: number }>): Promise<boolean>;
+  decrementSimpleProductStock(productId: string, quantity: number): Promise<boolean>;
+  getOutOfStockCount(): Promise<number>;
+  getLowStockProducts(): Promise<{ id: string; name: string; stock: number; minStock: number; stockAlertSent: boolean }[]>;
+  markStockAlertSent(productId: string): Promise<void>;
+  resetStockAlertSent(productId: string): Promise<void>;
   
+  updateUserProfile(userId: string, data: { name?: string | null; phone?: string | null; personType?: string; cpf?: string | null; cnpj?: string | null; razaoSocial?: string | null; inscricaoEstadual?: string | null }): Promise<User | undefined>;
   updateUserEmailVerification(userId: string, data: { emailVerified?: boolean; emailVerificationToken?: string | null; emailVerificationExpires?: Date | null }): Promise<User | undefined>;
   getUserByVerificationToken(token: string): Promise<User | undefined>;
   
@@ -444,6 +451,13 @@ export class DatabaseStorage implements IStorage {
       .from(orders)
       .where(eq(orders.userId, userId))
       .orderBy(desc(orders.createdAt));
+  }
+
+  async linkGuestOrdersToUser(email: string, userId: string): Promise<void> {
+    // Find guest orders by email and assign userId
+    await db.update(orders)
+      .set({ userId })
+      .where(and(eq(orders.shippingEmail, email), isNull(orders.userId)));
   }
 
   async getOrder(id: string): Promise<Order | undefined> {
@@ -785,16 +799,110 @@ export class DatabaseStorage implements IStorage {
   }
 
   async decrementSizeStock(items: Array<{ productId: string; size: string; quantity: number }>): Promise<boolean> {
+    // Group by productId to batch updates
+    const byProduct: Record<string, Array<{ size: string; quantity: number }>> = {};
     for (const item of items) {
       if (!item.size) continue;
-      const stockRecord = await this.getSizeStock(item.productId, item.size);
-      if (stockRecord && stockRecord.stock >= item.quantity) {
-        await db.update(productSizeStock)
-          .set({ stock: stockRecord.stock - item.quantity })
-          .where(eq(productSizeStock.id, stockRecord.id));
+      if (!byProduct[item.productId]) byProduct[item.productId] = [];
+      byProduct[item.productId].push({ size: item.size, quantity: item.quantity });
+    }
+
+    for (const [productId, sizeItems] of Object.entries(byProduct)) {
+      // Decrement in product_size_stock (legacy table)
+      for (const item of sizeItems) {
+        const stockRecord = await this.getSizeStock(productId, item.size);
+        if (stockRecord && stockRecord.stock >= item.quantity) {
+          await db.update(productSizeStock)
+            .set({ stock: stockRecord.stock - item.quantity })
+            .where(eq(productSizeStock.id, stockRecord.id));
+        }
       }
+
+      // Also decrement directly in product.sizes JSON (single source of truth for display & alerts)
+      const [p] = await db.select().from(products).where(eq(products.id, productId));
+      if (!p?.sizes) continue;
+      try {
+        const sizesObj = JSON.parse(p.sizes) as Record<string, number>;
+        let changed = false;
+        for (const item of sizeItems) {
+          if (sizesObj.hasOwnProperty(item.size)) {
+            sizesObj[item.size] = Math.max(0, (sizesObj[item.size] || 0) - item.quantity);
+            changed = true;
+          }
+        }
+        if (changed) {
+          await db.update(products)
+            .set({ sizes: JSON.stringify(sizesObj), stockAlertSent: false })
+            .where(eq(products.id, productId));
+        }
+      } catch { /* ignore JSON parse errors */ }
     }
     return true;
+  }
+
+  async decrementSimpleProductStock(productId: string, quantity: number): Promise<boolean> {
+    const [p] = await db.select().from(products).where(eq(products.id, productId));
+    if (!p || p.stock === null || p.stock === undefined) return true;
+    const newStock = Math.max(0, p.stock - quantity);
+    await db.update(products).set({ stock: newStock, stockAlertSent: false }).where(eq(products.id, productId));
+    return true;
+  }
+
+  async getOutOfStockCount(): Promise<number> {
+    const allProducts = await db.select().from(products).where(eq(products.isActive, true));
+    let count = 0;
+    for (const p of allProducts) {
+      if (p.sizes) {
+        try {
+          const sizesObj = JSON.parse(p.sizes) as Record<string, number>;
+          const total = Object.values(sizesObj).reduce((sum, qty) => sum + (qty || 0), 0);
+          if (total === 0) count++;
+        } catch { /* ignore */ }
+      } else if (p.stock !== null && p.stock !== undefined && p.stock === 0) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  async getLowStockProducts(): Promise<{ id: string; name: string; stock: number; minStock: number; stockAlertSent: boolean }[]> {
+    const allProducts = await db.select().from(products).where(
+      and(eq(products.isActive, true), isNotNull(products.minStock))
+    );
+    const result: { id: string; name: string; stock: number; minStock: number; stockAlertSent: boolean }[] = [];
+    for (const p of allProducts) {
+      if (p.minStock === null || p.minStock === undefined) continue;
+      let currentStock = 0;
+      if (p.sizes) {
+        try {
+          const sizesObj = JSON.parse(p.sizes) as Record<string, number>;
+          currentStock = Object.values(sizesObj).reduce((sum, qty) => sum + (qty || 0), 0);
+        } catch { currentStock = 0; }
+      } else {
+        currentStock = p.stock ?? 0;
+      }
+      if (currentStock <= p.minStock && !p.stockAlertSent) {
+        result.push({ id: p.id, name: p.name, stock: currentStock, minStock: p.minStock, stockAlertSent: p.stockAlertSent });
+      }
+    }
+    return result;
+  }
+
+  async markStockAlertSent(productId: string): Promise<void> {
+    await db.update(products).set({ stockAlertSent: true }).where(eq(products.id, productId));
+  }
+
+  async resetStockAlertSent(productId: string): Promise<void> {
+    await db.update(products).set({ stockAlertSent: false }).where(eq(products.id, productId));
+  }
+
+  async updateUserProfile(userId: string, data: { name?: string | null; phone?: string | null; personType?: string; cpf?: string | null; cnpj?: string | null; razaoSocial?: string | null; inscricaoEstadual?: string | null }): Promise<User | undefined> {
+    const [updated] = await db
+      .update(users)
+      .set(data)
+      .where(eq(users.id, userId))
+      .returning();
+    return updated || undefined;
   }
 
   async updateUserEmailVerification(userId: string, data: { emailVerified?: boolean; emailVerificationToken?: string | null; emailVerificationExpires?: Date | null }): Promise<User | undefined> {

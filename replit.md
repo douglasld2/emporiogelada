@@ -78,7 +78,7 @@ Preferred communication style: Simple, everyday language.
 ### Database Schema
 
 **Tables:**
-1. **users** - User accounts with role-based access (customer/admin), email verification
+1. **users** - User accounts with role-based access (customer/admin), email verification, fiscal fields (personType, cpf, cnpj, razaoSocial, inscricaoEstadual, phone)
 2. **password_reset_tokens** - Tokens for password recovery with expiration
 3. **groups** - Top-level categories (Vinhos, Destilados, Tabacaria, etc.) with isActive, displayOrder
 4. **collections** - Sub-categories linked to groups via groupId; includes isNewArrival, isSelection, featured flags

@@ -55,6 +55,7 @@ import CheckoutPending from "@/pages/checkout/pending";
 import AccountOverview from "@/pages/account/overview";
 import AccountOrders from "@/pages/account/orders";
 import AccountAddresses from "@/pages/account/addresses";
+import AccountProfile from "@/pages/account/profile";
 import AccountSupport from "@/pages/account/support";
 import AccountReferral from "@/pages/account/referral";
 import RefLandingPage from "@/pages/ref-landing";
@@ -105,6 +106,7 @@ function Router() {
       <Route path="/account">{() => <AuthRoute><AccountOverview /></AuthRoute>}</Route>
       <Route path="/account/orders">{() => <AuthRoute><AccountOrders /></AuthRoute>}</Route>
       <Route path="/account/addresses">{() => <AuthRoute><AccountAddresses /></AuthRoute>}</Route>
+      <Route path="/account/profile">{() => <AuthRoute><AccountProfile /></AuthRoute>}</Route>
       <Route path="/account/support">{() => <AuthRoute><AccountSupport /></AuthRoute>}</Route>
       <Route path="/account/referral">{() => <AuthRoute><AccountReferral /></AuthRoute>}</Route>
       <Route path="/ref/:code">{() => <RefLandingPage />}</Route>

@@ -149,6 +149,21 @@ export default function ProductPage() {
   const promoLabel = product.promoLabel ?? null;
   const cashbackPct = (product as any).cashbackPct ?? null;
 
+  const computeTotalStock = () => {
+    if (product.sizes) {
+      try {
+        const sizesObj = JSON.parse(product.sizes) as Record<string, number>;
+        const keys = Object.keys(sizesObj);
+        if (keys.length === 0) return null;
+        return keys.reduce((sum, k) => sum + (sizesObj[k] || 0), 0);
+      } catch { return null; }
+    }
+    const s = (product as any).stock;
+    return s ?? null;
+  };
+  const totalStock = computeTotalStock();
+  const isOutOfStock = totalStock !== null && totalStock === 0;
+
   const formatPrice = (val: number) =>
     new Intl.NumberFormat("pt-BR", {
       style: "currency",
@@ -428,16 +443,18 @@ export default function ProductPage() {
               </div>
 
               <button
-                onClick={handleAddToCart}
-                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-4 font-medium text-sm tracking-wide transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
+                onClick={isOutOfStock ? undefined : handleAddToCart}
+                disabled={isOutOfStock}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl py-4 font-medium text-sm tracking-wide transition-all duration-200"
                 style={{
-                  backgroundColor: added ? "#2d5a2d" : "#c9a96e",
-                  color: "#000000",
+                  backgroundColor: isOutOfStock ? "rgba(255,255,255,0.08)" : added ? "#2d5a2d" : "#c9a96e",
+                  color: isOutOfStock ? "rgba(255,255,255,0.35)" : "#000000",
+                  cursor: isOutOfStock ? "not-allowed" : "pointer",
                 }}
                 data-testid="btn-add-to-cart"
               >
                 <ShoppingCart className="w-4 h-4" />
-                {added ? "Adicionado!" : "Adicionar ao Carrinho"}
+                {isOutOfStock ? "Produto Indisponível" : added ? "Adicionado!" : "Adicionar ao Carrinho"}
               </button>
             </div>
 

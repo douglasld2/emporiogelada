@@ -36,6 +36,7 @@ import {
   sendAdminNewOrderEmail,
   getStatusInfo,
   sendSupportMessageEmail,
+  sendLowStockAlert,
 } from "./email";
 
 const generateToken = (): string => crypto.randomBytes(32).toString("hex");
@@ -53,6 +54,26 @@ const formatCurrency = (value: number | string): string => {
     style: "currency",
     currency: "BRL",
   }).format(numValue);
+};
+
+const triggerLowStockAlerts = async (storage: any): Promise<void> => {
+  try {
+    const lowStockProducts = await storage.getLowStockProducts();
+    if (lowStockProducts.length === 0) return;
+    const admins = await storage.getAdminUsers();
+    for (const admin of admins) {
+      await sendLowStockAlert(admin.email, lowStockProducts.map((p: any) => ({
+        name: p.name,
+        currentStock: p.stock,
+        minStock: p.minStock,
+      })));
+    }
+    for (const p of lowStockProducts) {
+      await storage.markStockAlertSent(p.id);
+    }
+  } catch (err) {
+    console.error('Error triggering low stock alerts:', err);
+  }
 };
 
 // ─── Promotion helpers ────────────────────────────────────────────────────────
@@ -363,6 +384,11 @@ export async function registerRoutes(
         verificationUrl,
       });
 
+      // Link any guest orders placed with this email before account creation
+      storage.linkGuestOrdersToUser(email, user.id).catch((e) =>
+        console.error("Error linking guest orders:", e)
+      );
+
       req.login(user, (err) => {
         if (err) return next(err);
         res.json({
@@ -593,7 +619,55 @@ export async function registerRoutes(
       name: user.name,
       role: user.role,
       emailVerified: user.emailVerified,
+      phone: user.phone ?? null,
+      personType: user.personType ?? "PF",
+      cpf: user.cpf ?? null,
+      cnpj: user.cnpj ?? null,
+      razaoSocial: user.razaoSocial ?? null,
+      inscricaoEstadual: user.inscricaoEstadual ?? null,
     });
+  });
+
+  app.patch("/api/auth/profile", requireAuth, async (req, res, next) => {
+    try {
+      const user = req.user as any;
+      const { name, phone, personType, cpf, cnpj, razaoSocial, inscricaoEstadual } = req.body;
+
+      const updateData: Record<string, any> = {};
+      if (name !== undefined) updateData.name = String(name).trim().slice(0, 200) || null;
+      if (phone !== undefined) updateData.phone = phone ? String(phone).replace(/\D/g, "").slice(0, 15) || null : null;
+      if (personType === "PF" || personType === "PJ") updateData.personType = personType;
+      if (cpf !== undefined) updateData.cpf = cpf ? String(cpf).replace(/\D/g, "").slice(0, 11) || null : null;
+      if (cnpj !== undefined) updateData.cnpj = cnpj ? String(cnpj).replace(/\D/g, "").slice(0, 14) || null : null;
+      if (razaoSocial !== undefined) updateData.razaoSocial = razaoSocial ? String(razaoSocial).trim().slice(0, 300) || null : null;
+      if (inscricaoEstadual !== undefined) updateData.inscricaoEstadual = inscricaoEstadual ? String(inscricaoEstadual).trim().slice(0, 100) || null : null;
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "Nenhum dado para atualizar" });
+      }
+
+      const updated = await storage.updateUserProfile(user.id, updateData);
+      if (!updated) return res.status(404).json({ error: "Usuário não encontrado" });
+
+      // Refresh session user
+      (req.user as any).name = updated.name;
+
+      res.json({
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        role: updated.role,
+        emailVerified: updated.emailVerified,
+        phone: updated.phone ?? null,
+        personType: updated.personType ?? "PF",
+        cpf: updated.cpf ?? null,
+        cnpj: updated.cnpj ?? null,
+        razaoSocial: updated.razaoSocial ?? null,
+        inscricaoEstadual: updated.inscricaoEstadual ?? null,
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.get("/api/addresses", requireAuth, async (req, res, next) => {
@@ -964,6 +1038,20 @@ export async function registerRoutes(
         return res.status(404).json({ error: "Product not found" });
       }
       res.json({ message: "Product deleted successfully" });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  // ============================================
+  // STOCK ALERTS
+  // ============================================
+
+  app.get("/api/admin/stock-alerts", requireAdmin, async (req, res, next) => {
+    try {
+      const outOfStockCount = await storage.getOutOfStockCount();
+      const lowStockProducts = await storage.getLowStockProducts();
+      res.json({ outOfStockCount, lowStockProducts });
     } catch (error) {
       next(error);
     }
@@ -1381,6 +1469,7 @@ export async function registerRoutes(
       const {
         items,
         shippingInfo,
+        fiscalData,
         shippingCost,
         shippingMethod,
         paymentMethod,
@@ -1581,6 +1670,11 @@ export async function registerRoutes(
         paymentMethod: paymentMethod || "Não especificado",
         status: "pending",
         ...shippingInfo,
+        fiscalPersonType: fiscalData?.personType || null,
+        fiscalCpf: fiscalData?.cpf || null,
+        fiscalCnpj: fiscalData?.cnpj || null,
+        fiscalRazaoSocial: fiscalData?.razaoSocial || null,
+        fiscalInscricaoEstadual: fiscalData?.inscricaoEstadual || null,
       });
 
       const orderItems = validatedItems.map((item: any) =>
@@ -1638,6 +1732,22 @@ export async function registerRoutes(
 
       await storage.clearCart(user.id);
 
+      // Decrement stock for all items
+      const sizedItems = validatedItems
+        .filter(i => i.selectedSize)
+        .map(i => ({ productId: i.productId, size: i.selectedSize!, quantity: i.quantity }));
+      if (sizedItems.length > 0) {
+        storage.decrementSizeStock(sizedItems).catch(console.error);
+      }
+      for (const item of validatedItems) {
+        if (!item.selectedSize) {
+          storage.decrementSimpleProductStock(item.productId, item.quantity).catch(console.error);
+        }
+      }
+
+      // Check & send low stock alerts (non-blocking)
+      triggerLowStockAlerts(storage).catch(console.error);
+
       const baseUrl = getBaseUrl(req);
       sendOrderNotifications(order.id, baseUrl, true).catch(console.error);
 
@@ -1655,6 +1765,7 @@ export async function registerRoutes(
       const {
         items,
         shippingInfo,
+        fiscalData,
         totalAmount,
         shippingCost,
         shippingMethod,
@@ -1763,9 +1874,28 @@ export async function registerRoutes(
           shippingZip: shippingInfo.shippingZip,
           shippingCountry: shippingInfo.shippingCountry,
           shippingPhone: shippingInfo.shippingPhone || null,
-        },
+          fiscalPersonType: fiscalData?.personType || null,
+          fiscalCpf: fiscalData?.cpf || null,
+          fiscalCnpj: fiscalData?.cnpj || null,
+          fiscalRazaoSocial: fiscalData?.razaoSocial || null,
+          fiscalInscricaoEstadual: fiscalData?.inscricaoEstadual || null,
+        } as any,
         orderItems,
       );
+
+      // Decrement stock for all items
+      const guestSizedItems = orderItems
+        .filter((i: any) => i.selectedSize)
+        .map((i: any) => ({ productId: i.productId, size: i.selectedSize!, quantity: i.quantity }));
+      if (guestSizedItems.length > 0) {
+        storage.decrementSizeStock(guestSizedItems).catch(console.error);
+      }
+      for (const item of orderItems as any[]) {
+        if (!item.selectedSize) {
+          storage.decrementSimpleProductStock(item.productId, item.quantity).catch(console.error);
+        }
+      }
+      triggerLowStockAlerts(storage).catch(console.error);
 
       const baseUrl = getBaseUrl(req);
       sendOrderNotifications(order.id, baseUrl, true).catch(console.error);
@@ -1851,6 +1981,7 @@ export async function registerRoutes(
         productIds,
         payer,
         shippingInfo,
+        fiscalData: clientFiscalData,
         shippingCost: clientShippingCost,
         shippingMethod,
         couponCode,
@@ -2177,6 +2308,7 @@ export async function registerRoutes(
 
       const pendingOrderData = JSON.stringify({
         shippingInfo,
+        fiscalData: clientFiscalData || null,
         shippingCost,
         shippingMethod: shippingMethod || "PAC",
         userId: user?.id || null,
@@ -2597,6 +2729,7 @@ export async function registerRoutes(
           const pendingData = JSON.parse(existingPayment.pendingOrderData);
           const {
             shippingInfo,
+            fiscalData: savedFiscalData,
             items,
             shippingCost: savedShippingCost,
             shippingMethod: savedShippingMethod,
@@ -2718,6 +2851,11 @@ export async function registerRoutes(
             shippingCost: shippingCost.toFixed(2),
             shippingMethod: savedShippingMethod || "Padrão",
             paymentMethod: paymentDetails.payment_method_id || "mercadopago",
+            fiscalPersonType: savedFiscalData?.personType || null,
+            fiscalCpf: savedFiscalData?.cpf || null,
+            fiscalCnpj: savedFiscalData?.cnpj || null,
+            fiscalRazaoSocial: savedFiscalData?.razaoSocial || null,
+            fiscalInscricaoEstadual: savedFiscalData?.inscricaoEstadual || null,
           };
 
           // Use createOrder if user was authenticated, otherwise createGuestOrder
@@ -2731,6 +2869,20 @@ export async function registerRoutes(
           await storage.updatePayment(existingPayment.id, {
             orderId: order.id,
           });
+
+          // Decrement stock for all items
+          const webhookSizedItems = validatedItems
+            .filter((i: any) => i.selectedSize)
+            .map((i: any) => ({ productId: i.productId, size: i.selectedSize!, quantity: i.quantity }));
+          if (webhookSizedItems.length > 0) {
+            storage.decrementSizeStock(webhookSizedItems).catch(console.error);
+          }
+          for (const item of validatedItems as any[]) {
+            if (!item.selectedSize) {
+              storage.decrementSimpleProductStock(item.productId, item.quantity).catch(console.error);
+            }
+          }
+          triggerLowStockAlerts(storage).catch(console.error);
 
           // Credit earned cashback immediately after payment approval
           if (webhookEffectiveUserId) {
@@ -3142,6 +3294,7 @@ export async function registerRoutes(
 
       const {
         shippingInfo,
+        fiscalData: spFiscalData,
         items,
         shippingCost: savedShippingCost,
         shippingMethod: savedShippingMethod,
@@ -3236,6 +3389,11 @@ export async function registerRoutes(
         shippingCost: shippingCost.toFixed(2),
         shippingMethod: savedShippingMethod || "Padrão",
         paymentMethod: payment.paymentMethod || "mercadopago",
+        fiscalPersonType: spFiscalData?.personType || null,
+        fiscalCpf: spFiscalData?.cpf || null,
+        fiscalCnpj: spFiscalData?.cnpj || null,
+        fiscalRazaoSocial: spFiscalData?.razaoSocial || null,
+        fiscalInscricaoEstadual: spFiscalData?.inscricaoEstadual || null,
       };
 
       let order;
@@ -3249,6 +3407,20 @@ export async function registerRoutes(
       }
 
       await storage.updatePayment(payment.id, { orderId: order.id });
+
+      // Decrement stock for all items
+      const sizedItemsWh = validatedItems
+        .filter((i: any) => i.selectedSize)
+        .map((i: any) => ({ productId: i.productId, size: i.selectedSize!, quantity: i.quantity }));
+      if (sizedItemsWh.length > 0) {
+        storage.decrementSizeStock(sizedItemsWh).catch(console.error);
+      }
+      for (const item of validatedItems as any[]) {
+        if (!item.selectedSize) {
+          storage.decrementSimpleProductStock(item.productId, item.quantity).catch(console.error);
+        }
+      }
+      triggerLowStockAlerts(storage).catch(console.error);
 
       // Debit cashback if used
       if (spCbDiscount > 0 && successEffectiveUserId) {

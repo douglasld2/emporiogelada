@@ -6,6 +6,7 @@ import {
   FolderOpen, ChevronDown, Tag, Percent, TrendingUp, Link2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/lib/AuthContext';
 import { storeConfig } from '@/config/store';
 import logoImg from "/logo.png";
@@ -68,7 +69,11 @@ function getLabelByHref(href: string) {
   return allItems.find(i => i.href === href)?.label ?? 'Admin';
 }
 
-function SidebarContent({ location, onNavigate }: { location: string; onNavigate: () => void }) {
+function SidebarContent({ location, onNavigate, outOfStockCount }: {
+  location: string;
+  onNavigate: () => void;
+  outOfStockCount: number;
+}) {
   const sectionWithActive = navEntries
     .filter((e): e is NavSection => e.type === 'section')
     .find(s => s.items.some(i => i.href === location));
@@ -110,6 +115,7 @@ function SidebarContent({ location, onNavigate }: { location: string; onNavigate
 
         const isOpen = openSections.includes(entry.label);
         const hasActive = entry.items.some(i => i.href === location);
+        const isProdutosSection = entry.label === 'Produtos';
 
         return (
           <div key={entry.label}>
@@ -126,6 +132,16 @@ function SidebarContent({ location, onNavigate }: { location: string; onNavigate
             >
               <entry.icon className="w-4 h-4 flex-shrink-0" />
               <span className="flex-1 text-left">{entry.label}</span>
+              {isProdutosSection && outOfStockCount > 0 && (
+                <span
+                  className="flex items-center justify-center rounded-full text-[10px] font-bold min-w-[18px] h-[18px] px-1"
+                  style={{ backgroundColor: '#8b1a1a', color: '#fff' }}
+                  data-testid="badge-out-of-stock"
+                  title={`${outOfStockCount} produto(s) sem estoque`}
+                >
+                  {outOfStockCount}
+                </span>
+              )}
               <motion.div animate={{ rotate: isOpen ? 180 : 0 }} transition={{ duration: 0.2 }}>
                 <ChevronDown className="w-3.5 h-3.5 opacity-60" />
               </motion.div>
@@ -143,6 +159,7 @@ function SidebarContent({ location, onNavigate }: { location: string; onNavigate
                   <div className="ml-3 pl-3 py-1 space-y-0.5" style={{ borderLeft: `1px solid ${SIDEBAR_BORDER}` }}>
                     {entry.items.map(item => {
                       const isActive = location === item.href;
+                      const isProductsLink = item.href === '/admin/products';
                       return (
                         <Link key={item.href} href={item.href} onClick={onNavigate}>
                           <div
@@ -157,7 +174,15 @@ function SidebarContent({ location, onNavigate }: { location: string; onNavigate
                             data-testid={`nav-${item.href.replace('/admin/', '')}`}
                           >
                             <item.icon className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span>{item.label}</span>
+                            <span className="flex-1">{item.label}</span>
+                            {isProductsLink && outOfStockCount > 0 && (
+                              <span
+                                className="flex items-center justify-center rounded-full text-[10px] font-bold min-w-[18px] h-[18px] px-1"
+                                style={{ backgroundColor: '#8b1a1a', color: '#fff' }}
+                              >
+                                {outOfStockCount}
+                              </span>
+                            )}
                           </div>
                         </Link>
                       );
@@ -178,6 +203,19 @@ export function AdminLayout({ children }: { children: ReactNode }) {
   const { logout } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
+  const { data: stockAlerts } = useQuery<{ outOfStockCount: number }>({
+    queryKey: ['adminStockAlerts'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/stock-alerts');
+      if (!res.ok) return { outOfStockCount: 0 };
+      return res.json();
+    },
+    refetchInterval: 60000,
+    staleTime: 30000,
+  });
+
+  const outOfStockCount = stockAlerts?.outOfStockCount ?? 0;
+
   const closeMenu = () => setIsSidebarOpen(false);
 
   return (
@@ -188,14 +226,24 @@ export function AdminLayout({ children }: { children: ReactNode }) {
         style={{ backgroundColor: SIDEBAR_BG, borderBottom: `1px solid ${SIDEBAR_BORDER}` }}
       >
         <img src={logoImg} alt={storeConfig.name} className="h-10 w-auto object-contain" />
-        <button
-          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-          className="p-2 rounded-md transition-colors"
-          style={{ color: 'rgba(255,255,255,0.7)' }}
-          data-testid="button-toggle-sidebar"
-        >
-          {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-3">
+          {outOfStockCount > 0 && (
+            <span
+              className="flex items-center justify-center rounded-full text-[11px] font-bold w-5 h-5"
+              style={{ backgroundColor: '#8b1a1a', color: '#fff' }}
+            >
+              {outOfStockCount}
+            </span>
+          )}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="p-2 rounded-md transition-colors"
+            style={{ color: 'rgba(255,255,255,0.7)' }}
+            data-testid="button-toggle-sidebar"
+          >
+            {isSidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
       {/* Mobile overlay */}
@@ -231,7 +279,7 @@ export function AdminLayout({ children }: { children: ReactNode }) {
           </button>
         </div>
 
-        <SidebarContent location={location} onNavigate={closeMenu} />
+        <SidebarContent location={location} onNavigate={closeMenu} outOfStockCount={outOfStockCount} />
 
         {/* Logout */}
         <div className="p-3" style={{ borderTop: `1px solid ${SIDEBAR_BORDER}` }}>
