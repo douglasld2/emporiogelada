@@ -1,15 +1,15 @@
-modules = ["nodejs-20", "web", "postgresql-16"]
-run = "npm run dev"
-hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
-
-[nix]
-channel = "stable-24_05"
-
-[deployment]
-deploymentTarget = "autoscale"
-build = ["npm", "run", "build"]
-publicDir = "dist/public"
-run = ["npm", "run", "start"]
+  modules = ["nodejs-20", "web", "postgresql-16"]
+  run = "npm run dev"
+  hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
+  
+  [nix]
+  channel = "stable-24_05"
+  
+  [deployment]
+  deploymentTarget = "autoscale"
+  build = ["npm", "run", "build"]
+  publicDir = "dist/public"
+  run = ["npm", "run", "start"]
 
 [[ports]]
 localPort = 5000
@@ -22,36 +22,97 @@ externalPort = 3000
 [[ports]]
 localPort = 5002
 externalPort = 3001
-
-[env]
-PORT = "5000"
-
-[workflows]
-runButton = "Project"
-
-[[workflows.workflow]]
-name = "Project"
-mode = "parallel"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "workflow.run"
-args = "Start application"
-
-[[workflows.workflow]]
-name = "Start application"
-author = "agent"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "npm run dev"
-waitForPort = 5000
-
-[agent]
-mockupState = "FULLSTACK"
-integrations = ["javascript_database:1.0.0", "javascript_object_storage:2.0.0"]
-
-[userenv]
-
-[userenv.shared]
-ORDER_PREFIX = "EG"
+  
+  [env]
+  PORT = "5000"
+  
+  [workflows]
+  runButton = "Project"
+  
+  [[workflows.workflow]]
+  name = "Project"
+  mode = "parallel"
+  author = "agent"
+  
+  [[workflows.workflow.tasks]]
+  task = "workflow.run"
+  args = "Start application"
+  
+  [[workflows.workflow.tasks]]
+  task = "workflow.run"
+  args = "test-unit"
+  
+  [[workflows.workflow.tasks]]
+  task = "workflow.run"
+  args = "test-integration"
+  
+  [[workflows.workflow.tasks]]
+  task = "workflow.run"
+  args = "test"
+  
+  [[workflows.workflow.tasks]]
+  task = "workflow.run"
+  args = "typecheck"
+  
+  [[workflows.workflow]]
+  name = "Start application"
+  author = "agent"
+  
+  [[workflows.workflow.tasks]]
+  task = "shell.exec"
+  args = "npm run dev"
+  waitForPort = 5000
+  
+  [[workflows.workflow]]
+  name = "test-unit"
+  author = "agent"
+  
+  [[workflows.workflow.tasks]]
+  task = "shell.exec"
+  args = "npx vitest run tests/unit"
+  
+  [workflows.workflow.metadata]
+  isValidation = true
+  
+  [[workflows.workflow]]
+  name = "test-integration"
+  author = "agent"
+  
+  [[workflows.workflow.tasks]]
+  task = "shell.exec"
+  args = "npx vitest run tests/integration"
+  
+  [workflows.workflow.metadata]
+  isValidation = true
+  
+  [[workflows.workflow]]
+  name = "test"
+  author = "agent"
+  
+  [[workflows.workflow.tasks]]
+  task = "shell.exec"
+  args = "npx vitest run"
+  
+  [workflows.workflow.metadata]
+  isValidation = true
+  
+  [[workflows.workflow]]
+  name = "typecheck"
+  author = "agent"
+  
+  [[workflows.workflow.tasks]]
+  task = "shell.exec"
+  args = "npx tsc --noEmit"
+  
+  [workflows.workflow.metadata]
+  isValidation = true
+  
+  [agent]
+  mockupState = "FULLSTACK"
+  integrations = ["javascript_database:1.0.0", "javascript_object_storage:2.0.0"]
+  
+  [userenv]
+  
+  [userenv.shared]
+  ORDER_PREFIX = "EG"
+  

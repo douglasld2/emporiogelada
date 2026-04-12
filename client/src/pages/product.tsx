@@ -111,9 +111,25 @@ export default function ProductPage() {
     }
   }, [product?.sizes]);
 
+  const parsedSizePrices: Record<string, string> = useMemo(() => {
+    if (!(product as any)?.sizePrices) return {};
+    try {
+      return JSON.parse((product as any).sizePrices);
+    } catch {
+      return {};
+    }
+  }, [(product as any)?.sizePrices]);
+
   const availableSizes = Object.entries(parsedSizes)
     .filter(([, qty]) => qty > 0)
     .map(([size]) => size);
+
+  // Auto-select first available size on load
+  useEffect(() => {
+    if (availableSizes.length > 0 && selectedSize === null) {
+      setSelectedSize(availableSizes[0]);
+    }
+  }, [availableSizes.length > 0 ? availableSizes[0] : '']);
 
   if (isLoadingProducts) {
     return (
@@ -142,11 +158,35 @@ export default function ProductPage() {
 
   const collection = collections.find((c) => c.id === product.collectionId);
 
-  const price = parseFloat(product.price as string);
-  const promoPrice = product.promotionPrice
-    ? parseFloat(product.promotionPrice)
-    : null;
-  const promoLabel = product.promoLabel ?? null;
+  // Determine the variation's base price:
+  // 1. sizePrices[selectedSize] if available
+  // 2. displayPrice from server (first variation) if no size match
+  // 3. product.price as last resort
+  const prod = product as any;
+  const getVariationPrice = (size: string | null): number => {
+    if (size && parsedSizePrices[size]) return parseFloat(String(parsedSizePrices[size]));
+    if (prod.displayPrice) return parseFloat(prod.displayPrice);
+    return parseFloat(product.price as string);
+  };
+
+  const baseVariationPrice = getVariationPrice(selectedSize);
+
+  // Apply promo discount (if any) to the current variation's price
+  const promoDiscountType: string | null = prod.promoDiscountType ?? null;
+  const promoDiscountValue: string | null = prod.promoDiscountValue ?? null;
+  const computeVariationPromoPrice = (base: number): number | null => {
+    if (!promoDiscountType || !promoDiscountValue) return null;
+    const disc = promoDiscountType === 'percentage'
+      ? base * (1 - parseFloat(promoDiscountValue) / 100)
+      : Math.max(0, base - parseFloat(promoDiscountValue));
+    const rounded = Math.round(disc * 100) / 100;
+    return rounded < base ? rounded : null;
+  };
+
+  const price = baseVariationPrice;
+  const promoPriceForVariation = computeVariationPromoPrice(baseVariationPrice);
+  const promoPrice = promoPriceForVariation;
+  const promoLabel = promoPrice !== null ? (prod.promoLabel ?? null) : null;
   const cashbackPct = (product as any).cashbackPct ?? null;
 
   const computeTotalStock = () => {

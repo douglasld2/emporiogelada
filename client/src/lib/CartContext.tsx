@@ -86,6 +86,21 @@ async function apiRequest(url: string, options?: RequestInit) {
   return response.json();
 }
 
+function getVariationBasePrice(item: LocalCartItem): number {
+  const prod = item.product as any;
+  if (prod.sizePrices) {
+    try {
+      const sp = JSON.parse(prod.sizePrices) as Record<string, string>;
+      if (item.selectedSize && sp[item.selectedSize] && sp[item.selectedSize] !== '') {
+        return parseFloat(sp[item.selectedSize]);
+      }
+      const firstKey = Object.keys(sp)[0];
+      if (firstKey && sp[firstKey] && sp[firstKey] !== '') return parseFloat(sp[firstKey]);
+    } catch { /* ignore */ }
+  }
+  return typeof item.product.price === 'string' ? parseFloat(item.product.price) : item.product.price;
+}
+
 function getItemPrice(item: LocalCartItem): number {
   if (item.kit) {
     const promoPrice = item.kit.promotionPrice ? parseFloat(item.kit.promotionPrice) : null;
@@ -101,17 +116,31 @@ function getItemPrice(item: LocalCartItem): number {
   if (prod.promotionPrice && parseFloat(prod.promotionPrice) > 0) {
     return parseFloat(prod.promotionPrice);
   }
-  return typeof item.product.price === 'string'
-    ? parseFloat(item.product.price)
-    : item.product.price;
+  return getVariationBasePrice(item);
 }
 
 function calcGuestEffectivePrice(
   product: Product,
   promotions: any[],
   collections: any[],
+  selectedSize?: string,
 ): { effectivePrice: number; promoLabel: string | null } {
-  const original = parseFloat(String(product.price));
+  // Use size-specific price as base; fall back to first variation, then product.price
+  let original = parseFloat(String(product.price));
+  const sp = (product as any).sizePrices;
+  if (sp) {
+    try {
+      const sizePricesMap = JSON.parse(sp) as Record<string, string>;
+      if (selectedSize && sizePricesMap[selectedSize] && sizePricesMap[selectedSize] !== '') {
+        original = parseFloat(String(sizePricesMap[selectedSize]));
+      } else {
+        const firstKey = Object.keys(sizePricesMap)[0];
+        if (firstKey && sizePricesMap[firstKey] && sizePricesMap[firstKey] !== '') {
+          original = parseFloat(String(sizePricesMap[firstKey]));
+        }
+      }
+    } catch { /* ignore */ }
+  }
   const collGroupMap: Record<string, string> = {};
   for (const c of collections) {
     if (c.groupId) collGroupMap[c.id] = c.groupId;
@@ -229,6 +258,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         item.product,
         promoData.promotions,
         promoData.collections,
+        item.selectedSize,
       );
       return {
         ...item,

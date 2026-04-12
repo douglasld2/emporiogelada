@@ -52,6 +52,22 @@ interface ShippingInfo {
   shippingPhone: string;
 }
 
+function getItemEffectivePrice(item: any): string {
+  if (item.effectivePrice) return item.effectivePrice.toString();
+  const prod = item.product as any;
+  if (prod.promotionPrice && parseFloat(prod.promotionPrice) > 0) return prod.promotionPrice;
+  // Variation-specific base price
+  if (prod.sizePrices) {
+    try {
+      const sp = JSON.parse(prod.sizePrices) as Record<string, string>;
+      const key = item.selectedSize && sp[item.selectedSize] ? item.selectedSize : Object.keys(sp)[0];
+      if (key && sp[key] && sp[key] !== '') return sp[key];
+    } catch { /* ignore */ }
+  }
+  if (prod.displayPrice) return prod.displayPrice;
+  return item.product.price;
+}
+
 export default function Checkout() {
   const { items, subtotal, clearCart } = useCart();
   const { user } = useAuth();
@@ -320,9 +336,7 @@ export default function Checkout() {
                   parseFloat(item.kit.promotionPrice) > 0
                   ? item.kit.promotionPrice
                   : item.kit.price
-                : item.effectivePrice ||
-                  (item.product as any).promotionPrice ||
-                  item.product.price,
+                : getItemEffectivePrice(item),
               selectedSize: item.selectedSize,
               kitId: item.kitId,
             })),
@@ -415,9 +429,7 @@ export default function Checkout() {
                 parseFloat(item.kit.promotionPrice) > 0
                 ? item.kit.promotionPrice
                 : item.kit.price
-              : item.effectivePrice ||
-                (item.product as any).promotionPrice ||
-                item.product.price,
+              : getItemEffectivePrice(item),
             quantity: item.quantity,
             kitId: item.kitId,
           })),
@@ -538,11 +550,8 @@ export default function Checkout() {
           productId: item.product.id,
           productName: item.product.name,
           quantity: item.quantity,
-          price: (
-            item.effectivePrice ||
-            (item.product as any).promotionPrice ||
-            item.product.price
-          ).toString(),
+          price: getItemEffectivePrice(item),
+          selectedSize: item.selectedSize,
         };
       });
 
@@ -1439,12 +1448,22 @@ export default function Checkout() {
                   ? parseFloat(item.kit!.promotionPrice)
                   : null;
               const kitBase = isKit ? parseFloat(item.kit!.price) : 0;
-              const prodBase = parseFloat(String(item.product.price));
+              // prodBase = variation-specific price (not the single product.price)
+              const _prod = item.product as any;
+              let prodBase = parseFloat(String(item.product.price));
+              if (_prod.sizePrices) {
+                try {
+                  const _sp = JSON.parse(_prod.sizePrices) as Record<string, string>;
+                  const _key = item.selectedSize && _sp[item.selectedSize] ? item.selectedSize : Object.keys(_sp)[0];
+                  if (_key && _sp[_key] && _sp[_key] !== '') prodBase = parseFloat(_sp[_key]);
+                } catch { /* ignore */ }
+              } else if (_prod.displayPrice) {
+                prodBase = parseFloat(_prod.displayPrice);
+              }
               const prodEffective = item.effectivePrice
                 ? parseFloat(item.effectivePrice)
-                : (item.product as any).promotionPrice &&
-                    parseFloat((item.product as any).promotionPrice) > 0
-                  ? parseFloat((item.product as any).promotionPrice)
+                : _prod.promotionPrice && parseFloat(_prod.promotionPrice) > 0
+                  ? parseFloat(_prod.promotionPrice)
                   : prodBase;
               const effectivePrice = isKit
                 ? kitPromo && kitPromo > 0

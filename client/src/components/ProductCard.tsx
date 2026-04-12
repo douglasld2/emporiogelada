@@ -31,10 +31,15 @@ function computeTotalStock(product: EnrichedProduct): number | null {
 export function ProductCard({ product, isDark = false }: ProductCardProps) {
   const hasPromo = !!product.promotionPrice && !!product.promoLabel;
   const hasCashback = !!product.cashbackPct && product.cashbackPct > 0;
+  // Use server-provided displayPrice (first variation price) as canonical base
+  const prod = product as any;
+  const basePrice = prod.displayPrice
+    ? parseFloat(prod.displayPrice)
+    : parseFloat(product.price);
   const displayPrice = hasPromo
     ? parseFloat(product.promotionPrice!)
-    : parseFloat(product.price);
-  const originalPrice = parseFloat(product.price);
+    : basePrice;
+  const originalPrice = basePrice;
 
   const totalStock = computeTotalStock(product);
   const isOutOfStock = totalStock !== null && totalStock === 0;

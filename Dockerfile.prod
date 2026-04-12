@@ -6,6 +6,10 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
+# Run unit tests (pure logic — no DB or live server required)
+RUN npx vitest run tests/unit
+
 RUN npm run build
 
 FROM node:20-alpine AS runner

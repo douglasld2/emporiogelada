@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { AdminLayout } from '@/components/AdminLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,6 +6,7 @@ import { Plus, Trash2, Edit2, BarChart3 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStore } from '@/lib/StoreContext';
+import { useToast } from '@/hooks/use-toast';
 import type { Coupon } from '@shared/schema';
 
 interface CouponFormData {
@@ -43,6 +44,7 @@ const defaultFormData: CouponFormData = {
 export default function AdminCoupons() {
   const queryClient = useQueryClient();
   const { products, collections } = useStore();
+  const { toast } = useToast();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isStatsDialogOpen, setIsStatsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -75,12 +77,19 @@ export default function AdminCoupons() {
         credentials: 'include',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to create coupon');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha ao criar cupom');
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/coupons'] });
       setIsDialogOpen(false);
+      toast({ title: 'Cupom criado com sucesso!' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Erro ao criar cupom', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -92,12 +101,19 @@ export default function AdminCoupons() {
         credentials: 'include',
         body: JSON.stringify(data),
       });
-      if (!res.ok) throw new Error('Failed to update coupon');
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Falha ao atualizar cupom');
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/coupons'] });
       setIsDialogOpen(false);
+      toast({ title: 'Cupom atualizado com sucesso!' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Erro ao atualizar cupom', description: err.message, variant: 'destructive' });
     },
   });
 
@@ -107,10 +123,14 @@ export default function AdminCoupons() {
         method: 'DELETE',
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Failed to delete coupon');
+      if (!res.ok) throw new Error('Falha ao excluir cupom');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/admin/coupons'] });
+      toast({ title: 'Cupom excluído.' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Erro ao excluir cupom', description: err.message, variant: 'destructive' });
     },
   });
 

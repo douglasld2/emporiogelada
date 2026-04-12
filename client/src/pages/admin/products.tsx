@@ -16,6 +16,10 @@ interface SizeQuantity {
   [size: string]: number;
 }
 
+interface SizePrices {
+  [size: string]: string;
+}
+
 export default function AdminProducts() {
   const { products, collections, groups, addProduct, deleteProduct, updateProduct } = useStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -24,12 +28,12 @@ export default function AdminProducts() {
   
   const [formData, setFormData] = useState<any>({
     name: '',
-    price: '0',
     image: '',
     images: [] as string[],
     collectionId: '',
     description: '',
     sizes: {} as SizeQuantity,
+    sizePrices: {} as SizePrices,
     productDetails: '',
     shippingReturns: '',
     brand: '',
@@ -58,6 +62,15 @@ export default function AdminProducts() {
           parsedSizes = {};
         }
       }
+
+      let parsedSizePrices: SizePrices = {};
+      if ((product as any).sizePrices) {
+        try {
+          parsedSizePrices = JSON.parse((product as any).sizePrices);
+        } catch {
+          parsedSizePrices = {};
+        }
+      }
       
       const existingCustomSizes = Object.keys(parsedSizes).filter(s => !DEFAULT_VARIANTS.includes(s));
       setCustomSizes(existingCustomSizes);
@@ -65,12 +78,12 @@ export default function AdminProducts() {
       setEditingId(product.id);
       setFormData({
         name: product.name,
-        price: product.price,
         image: product.image,
         images: product.images || [],
         collectionId: product.collectionId,
         description: product.description || '',
         sizes: parsedSizes,
+        sizePrices: parsedSizePrices,
         productDetails: product.productDetails || '',
         shippingReturns: product.shippingReturns || '',
         brand: product.brand || '',
@@ -90,12 +103,12 @@ export default function AdminProducts() {
       setCustomSizes([]);
       setFormData({ 
         name: '', 
-        price: '0', 
         image: '', 
         images: [],
         collectionId: collections[0]?.id || '',
         description: '',
         sizes: {},
+        sizePrices: {},
         productDetails: '',
         shippingReturns: '',
         brand: '',
@@ -116,6 +129,10 @@ export default function AdminProducts() {
     setFormData({ ...formData, sizes: { ...formData.sizes, [size]: qty } });
   };
 
+  const handleSizePriceChange = (size: string, price: string) => {
+    setFormData({ ...formData, sizePrices: { ...formData.sizePrices, [size]: price } });
+  };
+
   const handleAddCustomSize = () => {
     const label = newSizeLabel.trim();
     if (label && !DEFAULT_VARIANTS.includes(label) && !customSizes.includes(label)) {
@@ -129,7 +146,9 @@ export default function AdminProducts() {
     setCustomSizes(customSizes.filter(s => s !== size));
     const newSizes = { ...formData.sizes };
     delete newSizes[size];
-    setFormData({ ...formData, sizes: newSizes });
+    const newSizePrices = { ...formData.sizePrices };
+    delete newSizePrices[size];
+    setFormData({ ...formData, sizes: newSizes, sizePrices: newSizePrices });
   };
 
   const handleSubmit = async () => {
@@ -142,14 +161,35 @@ export default function AdminProducts() {
       allSizeKeys.forEach(k => { sizesJson[k] = typeof formData.sizes[k] === 'number' ? formData.sizes[k] : 0; });
       const hasSizes = allSizeKeys.length > 0;
 
+      // Build sizePrices — only include sizes that have a price set
+      const sizePricesObj: SizePrices = {};
+      allSizeKeys.forEach(k => {
+        const p = formData.sizePrices?.[k];
+        if (p && p.toString().trim() !== '') sizePricesObj[k] = p.toString().trim();
+      });
+      const hasSizePrices = Object.keys(sizePricesObj).length > 0;
+
+      if (!formData.name.trim()) {
+        alert('Informe o nome do produto.');
+        return;
+      }
+      if (!hasSizePrices) {
+        alert('Defina o preço de pelo menos uma variação na seção "Variações, Preço e Estoque".');
+        return;
+      }
+
+      // Derive canonical price from first variation that has a price (legacy field)
+      const derivedPrice = Object.values(sizePricesObj)[0]?.toString() || '0';
+
       const productData: any = {
         name: formData.name,
-        price: formData.price.toString(),
+        price: derivedPrice,
         image: formData.image,
         images: formData.images.length > 0 ? formData.images : null,
         collectionId: formData.collectionId,
         description: formData.description || null,
         sizes: hasSizes ? JSON.stringify(sizesJson) : null,
+        sizePrices: hasSizePrices ? JSON.stringify(sizePricesObj) : null,
         productDetails: formData.productDetails || null,
         shippingReturns: formData.shippingReturns || null,
         brand: formData.brand || null,
@@ -368,25 +408,15 @@ export default function AdminProducts() {
           </DialogHeader>
           <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-5 py-4">
-              {/* Nome e Preço */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2 space-y-1">
+              {/* Nome e Subgrupo */}
+              <div className="space-y-4">
+                <div className="space-y-1">
                   <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Nome do Produto *</label>
                   <Input 
                     value={formData.name} 
                     onChange={e => setFormData({...formData, name: e.target.value})}
                     placeholder="Ex: Vinho Tinto Cabernet Sauvignon..."
                     data-testid="input-name"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Preço (R$) *</label>
-                  <Input 
-                    type="number" 
-                    step="0.01" 
-                    value={formData.price} 
-                    onChange={e => setFormData({...formData, price: e.target.value})}
-                    data-testid="input-price"
                   />
                 </div>
                 <div className="space-y-1">
@@ -480,34 +510,61 @@ export default function AdminProducts() {
 
               {/* Variações de Estoque */}
               <div className="space-y-3">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Variações e Estoque</label>
-                <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Variações, Preço e Estoque *</label>
+                <p className="text-[11px] text-gray-400 -mt-1">Informe o preço de cada variação disponível. Pelo menos uma variação deve ter preço definido.</p>
+                {/* Header */}
+                <div className="grid gap-2" style={{ gridTemplateColumns: '6rem 1fr 5rem' }}>
+                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Variação</span>
+                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Preço (R$)</span>
+                  <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Estoque</span>
+                </div>
+                <div className="space-y-1.5">
                   {DEFAULT_VARIANTS.map(size => (
-                    <div key={size} className="flex items-center gap-2">
-                      <span className="w-20 text-xs font-medium text-gray-600 truncate">{size}</span>
+                    <div key={size} className="grid items-center gap-2" style={{ gridTemplateColumns: '6rem 1fr 5rem' }}>
+                      <span className="text-xs font-medium text-gray-600 truncate">{size}</span>
                       <Input
                         type="number"
                         min="0"
-                        value={formData.sizes[size] || 0}
+                        step="0.01"
+                        value={formData.sizePrices?.[size] || ''}
+                        onChange={e => handleSizePriceChange(size, e.target.value)}
+                        placeholder="0.00"
+                        className="h-8 text-sm"
+                        data-testid={`input-size-price-${size}`}
+                      />
+                      <Input
+                        type="number"
+                        min="0"
+                        value={formData.sizes[size] ?? 0}
                         onChange={e => handleSizeQuantityChange(size, e.target.value)}
-                        className="flex-1 h-8 text-sm"
+                        className="h-8 text-sm"
                         data-testid={`input-size-${size}`}
                       />
                     </div>
                   ))}
                   {customSizes.map(size => (
-                    <div key={size} className="flex items-center gap-2">
-                      <span className="w-20 text-xs font-medium truncate" style={{ color: "#c9a96e" }}>{size}</span>
+                    <div key={size} className="grid items-center gap-2" style={{ gridTemplateColumns: '6rem 1fr 5rem auto' }}>
+                      <span className="text-xs font-medium truncate" style={{ color: "#c9a96e" }}>{size}</span>
                       <Input
                         type="number"
                         min="0"
-                        value={formData.sizes[size] || 0}
+                        step="0.01"
+                        value={formData.sizePrices?.[size] || ''}
+                        onChange={e => handleSizePriceChange(size, e.target.value)}
+                        placeholder="0.00"
+                        className="h-8 text-sm"
+                        data-testid={`input-size-price-${size}`}
+                      />
+                      <Input
+                        type="number"
+                        min="0"
+                        value={formData.sizes[size] ?? 0}
                         onChange={e => handleSizeQuantityChange(size, e.target.value)}
-                        className="flex-1 h-8 text-sm"
+                        className="h-8 text-sm"
                         data-testid={`input-size-${size}`}
                       />
                       <button type="button" onClick={() => handleRemoveCustomSize(size)} className="text-red-400 hover:text-red-600" data-testid={`button-remove-size-${size}`}>
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   ))}

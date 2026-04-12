@@ -127,7 +127,7 @@ export default function AdminCashback() {
       if (!res.ok) throw new Error('Unauthorized');
       return res.json();
     },
-    onSuccess: (data) => setSettingsForm(data),
+    onSuccess: (data: any) => setSettingsForm(data),
   } as any);
 
   useState(() => {

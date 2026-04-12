@@ -2,7 +2,7 @@
  * ============================================
  * CONFIGURAÇÃO CENTRALIZADA DA LOJA
  * ============================================
- * 
+ *
  * Este arquivo contém TODAS as informações personalizáveis da loja.
  * Para adaptar o site para um novo cliente, modifique apenas este arquivo.
  */
@@ -14,7 +14,8 @@ export const storeConfig = {
   name: "Empório Gelada",
   shortName: "Empório Gelada",
   tagline: "Bebidas, Destilados & Tabacaria",
-  description: "Sua casa de bebidas premium desde 2016. Cervejas geladas, destilados selecionados, vinhos e muito mais.",
+  description:
+    "Sua casa de bebidas premium desde 2016. Cervejas geladas, destilados selecionados, vinhos e muito mais.",
   foundedYear: 2016,
 
   // ============================================
@@ -25,7 +26,8 @@ export const storeConfig = {
     phoneClean: "553232365994",
     email: "contato@emporiogelada.com.br",
     emailSupport: "suporte@emporiogelada.com.br",
-    whatsappMessage: "Olá! Gostaria de mais informações sobre os produtos da Empório Gelada.",
+    whatsappMessage:
+      "Olá! Gostaria de mais informações sobre os produtos da Empório Gelada.",
     hours: "Seg-Sab: 10h - 22h",
   },
 
@@ -59,10 +61,12 @@ export const storeConfig = {
     enabled: true,
     minimumAge: 18,
     title: "Verificação de Idade",
-    message: "Este site contém produtos alcoólicos e de tabaco. Você confirma que tem 18 anos ou mais?",
+    message:
+      "Este site contém produtos alcoólicos e de tabaco. Você confirma que tem 18 anos ou mais?",
     confirmText: "Sim, tenho 18 anos ou mais",
     denyText: "Não, sou menor de idade",
-    deniedMessage: "Desculpe, você precisa ter 18 anos ou mais para acessar este site.",
+    deniedMessage:
+      "Desculpe, você precisa ter 18 anos ou mais para acessar este site.",
   },
 
   // ============================================
@@ -70,14 +74,13 @@ export const storeConfig = {
   // ============================================
   about: {
     heroTitle: "Nossa História",
-    heroSubtitle: "Desde 2016 levando as melhores bebidas, destilados e produtos de tabacaria para quem aprecia o melhor.",
-    quote: "Gelada na medida certa.",
+    heroSubtitle: "Excelência que se constrói ao longo do tempo",
+    quote: "Há 10 anos elevando padrões e brindando histórias.",
 
     philosophy: {
       title: "Nossa Filosofia",
       paragraphs: [
-        "Desde 2016, o Empório Gelada é referência em bebidas premium. Nossa seleção vai de cervejas artesanais geladas a destilados raros importados, passando por vinhos premiados e uma tabacaria completa.",
-        "Acreditamos que o prazer começa na escolha certa. Por isso, nossa equipe está sempre pronta para indicar o produto ideal para cada ocasião — seja um evento especial, um presente ou simplesmente um momento de relaxamento.",
+        "Mais do que uma loja, somos especialistas em proporcionar experiências. Ao longo dos anos, nos tornamos referência em           bebidas premium, reunindo uma curadoria que vai de cervejas artesanais sempre geladas a destilados importados,                 passando por vinhos selecionados e uma tabacaria completa.",
       ],
     },
 
@@ -87,15 +90,18 @@ export const storeConfig = {
       items: [
         {
           title: "Variedade",
-          description: "Ampla seleção de cervejas, vinhos, destilados, produtos de tabacaria e muito mais — tudo em um só lugar.",
+          description:
+            "Nossa linha de produtos vai além: carnes selecionadas, linguiças especiais, petiscos, molhos e temperos que elevam              o seu churrasco a outro nível.",
         },
         {
           title: "Qualidade",
-          description: "Cada produto passa por rigorosa seleção antes de chegar às nossas prateleiras. Só o melhor chega até você.",
+          description:
+            "Sempre à frente, acompanhamos as tendências e ampliamos constantemente nosso portfólio. A inclusão da nossa área                de tabacaria reforça esse compromisso. ",
         },
         {
           title: "Atendimento",
-          description: "Nossa equipe especializada está sempre pronta para ajudar você a encontrar o produto perfeito para cada ocasião.",
+          description:
+            "Nossa essência permanece a mesma desde o início: atendimento próximo, conhecimento de produto e compromisso                     genuíno com cada cliente. ",
         },
       ],
     },
@@ -148,7 +154,8 @@ export const storeConfig = {
   // ============================================
   footer: {
     copyright: "Todos os direitos reservados.",
-    ageWarning: "Proibida a venda de bebidas alcoólicas e produtos de tabaco para menores de 18 anos.",
+    ageWarning:
+      "Proibida a venda de bebidas alcoólicas e produtos de tabaco para menores de 18 anos.",
     developer: {
       name: "SalvaCode",
       url: "https://salvacode.com",
@@ -161,19 +168,20 @@ export const storeConfig = {
   seo: {
     title: "Empório Gelada | Bebidas, Destilados & Tabacaria",
     ogTitle: "Empório Gelada",
-    ogDescription: "Sua casa de bebidas premium desde 2016. Cervejas geladas, destilados selecionados, vinhos e tabacaria.",
+    ogDescription:
+      "Sua casa de bebidas premium desde 2016. Cervejas geladas, destilados selecionados, vinhos e tabacaria.",
   },
 
   // ============================================
   // CORES PRINCIPAIS (para referência)
   // ============================================
   colors: {
-    primary: "#000000",      // Azul escuro - cor principal
-    secondary: "#c9a96e",    // Dourado âmbar - cor secundária
-    accent: "#8b1a1a",       // Vinho/bordô - destaque
-    background: "#f8f5f0",   // Creme - fundo
-    text: "#000000",         // Texto escuro
-    muted: "#6B7280",        // Texto secundário
+    primary: "#000000", // Azul escuro - cor principal
+    secondary: "#c9a96e", // Dourado âmbar - cor secundária
+    accent: "#8b1a1a", // Vinho/bordô - destaque
+    background: "#f8f5f0", // Creme - fundo
+    text: "#000000", // Texto escuro
+    muted: "#6B7280", // Texto secundário
   },
 
   // ============================================
@@ -218,6 +226,18 @@ export const storeConfig = {
   ],
 };
 
-export const { name, shortName, contact, address, about, footer, seo, colors, locale, messages, support } = storeConfig;
+export const {
+  name,
+  shortName,
+  contact,
+  address,
+  about,
+  footer,
+  seo,
+  colors,
+  locale,
+  messages,
+  support,
+} = storeConfig;
 
 export type StoreConfig = typeof storeConfig;

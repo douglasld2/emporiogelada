@@ -8,7 +8,7 @@ import { useOrders, useOrderStats } from '@/lib/api';
 import { useQuery } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useState } from 'react';
+import { useState, type ReactElement } from 'react';
 
 interface CashbackTransaction {
   id: string;
@@ -24,7 +24,7 @@ interface WalletData {
   transactions: CashbackTransaction[];
 }
 
-const TX_ICONS: Record<string, JSX.Element> = {
+const TX_ICONS: Record<string, ReactElement> = {
   earned: <ArrowDownLeft className="w-3.5 h-3.5 text-green-600" />,
   spent: <ArrowUpRight className="w-3.5 h-3.5 text-red-500" />,
   reversed: <Undo2 className="w-3.5 h-3.5 text-orange-500" />,
@@ -104,8 +104,8 @@ export default function AccountOverview() {
       groups.get(key)!.push(tx);
     }
     // Sort within each group: spent first, then earned
-    for (const txs of groups.values()) {
-      txs.sort((a, b) => (TYPE_PRIORITY[a.type] ?? 9) - (TYPE_PRIORITY[b.type] ?? 9));
+    for (const txs of Array.from(groups.values())) {
+      txs.sort((a: CashbackTransaction, b: CashbackTransaction) => (TYPE_PRIORITY[a.type] ?? 9) - (TYPE_PRIORITY[b.type] ?? 9));
     }
     // Sort groups by the earliest (oldest) createdAt in the group, most recent group first
     const sortedGroups = Array.from(groups.values()).sort((a, b) => {

@@ -48,7 +48,7 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 // Purge stale entries every 5 minutes to avoid memory leaks
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
+  for (const [key, entry] of Array.from(rateLimitStore.entries())) {
     if (entry.resetAt < now) rateLimitStore.delete(key);
   }
 }, 5 * 60 * 1000);

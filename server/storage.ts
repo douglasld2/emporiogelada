@@ -1417,7 +1417,7 @@ export class DatabaseStorage implements IStorage {
     ) / 100;
 
     await db.transaction(async (tx) => {
-      for (const [ruleId, entry] of ruleEarnings) {
+      for (const [ruleId, entry] of Array.from(ruleEarnings)) {
         const amount = Math.round(entry.amount * 100) / 100;
         if (amount <= 0) continue;
         await tx.insert(cashbackTransactions).values({

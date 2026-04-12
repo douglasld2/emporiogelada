@@ -106,6 +106,7 @@ export const products = pgTable("products", {
     .references(() => collections.id, { onDelete: "cascade" }),
   description: text("description"),
   sizes: text("sizes"),
+  sizePrices: text("size_prices"),
   productDetails: text("product_details"),
   shippingReturns: text("shipping_returns"),
   weight: decimal("weight", { precision: 10, scale: 3 }).default("0.5"),
@@ -563,6 +564,8 @@ export const insertCouponSchema = createInsertSchema(coupons)
     currentUsageCount: true,
   })
   .extend({
+    productIds: z.string().array().nullable().optional(),
+    collectionIds: z.string().array().nullable().optional(),
     startDate: z.preprocess((val) => {
       if (!val) return null;
       if (val instanceof Date) return val;

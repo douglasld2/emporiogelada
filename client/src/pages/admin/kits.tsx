@@ -4,7 +4,7 @@ import { useStore } from '@/lib/StoreContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Edit2, Gift, X, Percent } from 'lucide-react';
+import { Plus, Trash2, Edit2, Gift, X, Percent, Loader2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ImageUploader } from '@/components/ImageUploader';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -18,6 +18,7 @@ export default function AdminKits() {
   const { kits, products, addKit, updateKit, deleteKit } = useStore();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   const [formData, setFormData] = useState<any>({
     name: '',
@@ -32,7 +33,7 @@ export default function AdminKits() {
     items: [] as KitItem[],
   });
 
-  const handleOpen = (kit?: any) => {
+  const handleOpen = async (kit?: any) => {
     if (kit) {
       setEditingId(kit.id);
       setFormData({
@@ -45,8 +46,26 @@ export default function AdminKits() {
         promotionEndDate: kit.promotionEndDate ? new Date(kit.promotionEndDate).toISOString().slice(0, 16) : '',
         isActive: kit.isActive ?? true,
         displayOrder: kit.displayOrder || 0,
-        items: kit.items || [],
+        items: [],
       });
+      setIsDialogOpen(true);
+      // Fetch kit items from API since the list only returns kits without items
+      setLoadingItems(true);
+      try {
+        const res = await fetch(`/api/kits/${kit.id}`, { credentials: 'include' });
+        if (res.ok) {
+          const data = await res.json();
+          const items: KitItem[] = (data.items || []).map((i: any) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+          }));
+          setFormData((prev: any) => ({ ...prev, items }));
+        }
+      } catch (e) {
+        console.error('Failed to fetch kit items', e);
+      } finally {
+        setLoadingItems(false);
+      }
     } else {
       setEditingId(null);
       setFormData({
@@ -61,8 +80,8 @@ export default function AdminKits() {
         displayOrder: kits.length,
         items: [],
       });
+      setIsDialogOpen(true);
     }
-    setIsDialogOpen(true);
   };
 
   const addProductToKit = (productId: string) => {
@@ -309,7 +328,10 @@ export default function AdminKits() {
 
             {/* Produtos do Kit */}
             <div className="border-t pt-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-3">Produtos do Kit</h4>
+              <div className="flex items-center gap-2 mb-3">
+                <h4 className="text-sm font-medium text-gray-700">Produtos do Kit</h4>
+                {loadingItems && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+              </div>
               
               {/* Itens já adicionados */}
               {formData.items.length > 0 && (

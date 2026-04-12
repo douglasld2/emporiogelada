@@ -107,12 +107,37 @@ function calcCashbackPct(
   return 0;
 }
 
+/** Returns the price to display/use as the base for a product.
+ *  If the product has sizePrices, the first entry is the canonical display price.
+ *  selectedSize overrides this when computing cart/checkout prices.
+ */
+function getProductDisplayPrice(
+  product: { price: string; sizePrices?: string | null },
+  selectedSize?: string | null,
+): number {
+  if (product.sizePrices) {
+    try {
+      const sp = JSON.parse(product.sizePrices) as Record<string, string>;
+      if (selectedSize && sp[selectedSize] && sp[selectedSize] !== '') {
+        return parseFloat(sp[selectedSize]);
+      }
+      // First variation is the canonical display price
+      const firstKey = Object.keys(sp)[0];
+      if (firstKey && sp[firstKey] && sp[firstKey] !== '') {
+        return parseFloat(sp[firstKey]);
+      }
+    } catch { /* ignore */ }
+  }
+  return parseFloat(product.price);
+}
+
 function calcEffectivePrice(
-  product: { id: string; price: string; collectionId: string | null },
+  product: { id: string; price: string; collectionId: string | null; sizePrices?: string | null },
   activePromos: any[],
   collectionGroupMap: Record<string, string>,
-): { effectivePrice: number; promoLabel: string | null } {
-  const original = parseFloat(product.price);
+  selectedSize?: string | null,
+): { effectivePrice: number; promoLabel: string | null; promoDiscountType: string | null; promoDiscountValue: string | null; displayPrice: number } {
+  const original = getProductDisplayPrice(product, selectedSize);
   const groupId = product.collectionId
     ? collectionGroupMap[product.collectionId]
     : null;
@@ -129,7 +154,7 @@ function calcEffectivePrice(
     return false;
   });
 
-  if (!applicable.length) return { effectivePrice: original, promoLabel: null };
+  if (!applicable.length) return { effectivePrice: original, promoLabel: null, promoDiscountType: null, promoDiscountValue: null, displayPrice: original };
 
   let bestPrice = original;
   let bestPromo: any = null;
@@ -145,7 +170,7 @@ function calcEffectivePrice(
     }
   }
 
-  if (!bestPromo) return { effectivePrice: original, promoLabel: null };
+  if (!bestPromo) return { effectivePrice: original, promoLabel: null, promoDiscountType: null, promoDiscountValue: null, displayPrice: original };
 
   const label =
     bestPromo.discountType === "percentage"
@@ -154,7 +179,13 @@ function calcEffectivePrice(
           .toFixed(2)
           .replace(".", ",")} OFF`;
 
-  return { effectivePrice: Math.round(bestPrice * 100) / 100, promoLabel: label };
+  return {
+    effectivePrice: Math.round(bestPrice * 100) / 100,
+    promoLabel: label,
+    promoDiscountType: bestPromo.discountType,
+    promoDiscountValue: bestPromo.discountValue,
+    displayPrice: original,
+  };
 }
 
 async function resolveKitPrice(kitId: string, storage: any): Promise<{ price: number; name: string; image: string | null } | null> {
@@ -951,7 +982,7 @@ export async function registerRoutes(
       const activeCashbackRules = allCashbackRules.filter(r => r.isActive);
 
       const enriched = products.map((p) => {
-        const { effectivePrice, promoLabel } = calcEffectivePrice(
+        const { effectivePrice, promoLabel, promoDiscountType, promoDiscountValue, displayPrice } = calcEffectivePrice(
           p,
           activePromos,
           collectionGroupMap,
@@ -959,8 +990,11 @@ export async function registerRoutes(
         const cashbackPct = calcCashbackPct(p, activeCashbackRules, collectionGroupMap);
         return {
           ...p,
+          displayPrice: displayPrice.toFixed(2),
           promotionPrice: promoLabel ? effectivePrice.toFixed(2) : null,
           promoLabel,
+          promoDiscountType,
+          promoDiscountValue,
           cashbackPct: cashbackPct > 0 ? cashbackPct : null,
         };
       });
@@ -988,7 +1022,7 @@ export async function registerRoutes(
         if (c.groupId) collectionGroupMap[c.id] = c.groupId;
       }
       const activeCashbackRules = allCashbackRules.filter(r => r.isActive);
-      const { effectivePrice, promoLabel } = calcEffectivePrice(
+      const { effectivePrice, promoLabel, promoDiscountType, promoDiscountValue, displayPrice } = calcEffectivePrice(
         product,
         activePromos,
         collectionGroupMap,
@@ -997,8 +1031,11 @@ export async function registerRoutes(
 
       res.json({
         ...product,
+        displayPrice: displayPrice.toFixed(2),
         promotionPrice: promoLabel ? effectivePrice.toFixed(2) : null,
         promoLabel,
+        promoDiscountType,
+        promoDiscountValue,
         cashbackPct: cashbackPct > 0 ? cashbackPct : null,
       });
     } catch (error) {
@@ -1156,6 +1193,7 @@ export async function registerRoutes(
           item.product,
           activePromos,
           collGroupMap,
+          item.selectedSize,
         );
         return {
           ...item,
@@ -1524,7 +1562,7 @@ export async function registerRoutes(
             selectedSize: null,
           });
         } else {
-          const { effectivePrice } = calcEffectivePrice(product, activePromos, collGroupMap);
+          const { effectivePrice } = calcEffectivePrice(product, activePromos, collGroupMap, item.selectedSize);
           serverSubtotal += effectivePrice * quantity;
           validatedItems.push({
             productId: product.id,
@@ -1558,9 +1596,9 @@ export async function registerRoutes(
               (!coupon.minOrderAmount || serverSubtotal >= parseFloat(coupon.minOrderAmount));
             if (isValid) {
               let eligibleSubtotal = serverSubtotal;
-              if (coupon.appliesTo === "products" && coupon.productIds?.length > 0) {
+              if (coupon.appliesTo === "products" && (coupon.productIds?.length ?? 0) > 0) {
                 eligibleSubtotal = validatedItems.filter(it => coupon.productIds!.includes(it.productId)).reduce((s, it) => s + parseFloat(it.price) * it.quantity, 0);
-              } else if (coupon.appliesTo === "collections" && coupon.collectionIds?.length > 0) {
+              } else if (coupon.appliesTo === "collections" && (coupon.collectionIds?.length ?? 0) > 0) {
                 eligibleSubtotal = 0;
                 for (const it of validatedItems) {
                   const prod = await storage.getProduct(it.productId);
@@ -1829,7 +1867,7 @@ export async function registerRoutes(
             selectedSize: null,
           });
         } else {
-          const { effectivePrice: guestEffPrice } = calcEffectivePrice(product, activePromosGuest, collGroupMapGuest);
+          const { effectivePrice: guestEffPrice } = calcEffectivePrice(product, activePromosGuest, collGroupMapGuest, item.selectedSize);
           serverSubtotal += guestEffPrice * quantity;
           validatedItems.push({
             productId: product.id,
@@ -2043,7 +2081,7 @@ export async function registerRoutes(
             selectedSize: null,
           });
         } else {
-          const { effectivePrice: prefEffPrice } = calcEffectivePrice(product, activePromosPref, collGroupMapPref);
+          const { effectivePrice: prefEffPrice } = calcEffectivePrice(product, activePromosPref, collGroupMapPref, item.selectedSize);
           subtotal += prefEffPrice * quantity;
           validatedItems.push({
             title: product.name,
@@ -3083,10 +3121,10 @@ export async function registerRoutes(
         height: 15,
         width: 20,
         length: 30,
-        declaredValue: parseFloat(order.order?.total || order.total || '0'),
+        declaredValue: parseFloat((order.order as any)?.totalAmount || (order as any).totalAmount || (order.order as any)?.total || '0'),
       }];
 
-      const orderData = order.order || order;
+      const orderData = (order.order || order) as any;
       const destName = orderData.customerName || orderData.shippingName || '';
       const destPhone = (orderData.customerPhone || orderData.shippingPhone || '').replace(/\D/g, '');
       const destZip = (orderData.shippingZip || '').replace(/\D/g, '');

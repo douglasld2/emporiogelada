@@ -8,6 +8,27 @@ Empório Gelada is a premium drinks and tobacco (tabacaria/bebidas) e-commerce p
 
 Preferred communication style: Simple, everyday language.
 
+## Testing
+
+**Framework:** Vitest (configured in `vitest.config.ts`)
+
+**Run all tests:**
+```
+npx vitest run
+```
+
+**Test files:**
+| File | Coverage |
+|------|----------|
+| `tests/unit/pricing.test.ts` | `getProductDisplayPrice`, `calcEffectivePrice`, `applyPromoDiscount` — all variation pricing + promotion logic |
+| `tests/unit/cart.test.ts` | `calcCartSubtotal` — subtotal calculation edge cases |
+| `tests/unit/coupon.test.ts` | `calcCouponDiscount` — validity checks, percentage/fixed discounts, product/collection scope |
+| `tests/integration/api.test.ts` | Live HTTP tests for groups, collections, products, auth-guards, promotions, coupon validation, kits |
+
+**Shared module `shared/pricing.ts`:** Pure pricing functions that both server routes and tests can import. No DB dependencies — all data is passed as plain objects.
+
+**Registered validation commands:** `test`, `test-unit`, `test-integration`, `typecheck`
+
 ## Visual Identity
 
 - **Primary Color:** `#1a1a2e` (dark navy)

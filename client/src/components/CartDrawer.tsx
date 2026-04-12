@@ -19,8 +19,18 @@ function getItemDisplay(item: LocalCartItem) {
       isKit: true,
     };
   }
-  const basePrice = parseFloat(String(item.product.price));
   const prod = item.product as any;
+  // Base price = variation-specific price (selectedSize or first variation or product.price)
+  let basePrice = parseFloat(String(item.product.price));
+  if (prod.sizePrices) {
+    try {
+      const sp = JSON.parse(prod.sizePrices) as Record<string, string>;
+      const key = item.selectedSize && sp[item.selectedSize] ? item.selectedSize : Object.keys(sp)[0];
+      if (key && sp[key] && sp[key] !== '') basePrice = parseFloat(sp[key]);
+    } catch { /* ignore */ }
+  } else if (prod.displayPrice) {
+    basePrice = parseFloat(prod.displayPrice);
+  }
   // Use server effectivePrice, or promotionPrice from product listing (guest), or base price
   const resolvedPrice = item.effectivePrice
     ? parseFloat(item.effectivePrice)
