@@ -27,6 +27,17 @@ import {
 } from "./mercadopago";
 import { calculateShipping, calculatePackageDimensions } from "./correios";
 import { isLoggiEnabled, getLoggiQuote, createLoggiShipment, getLoggiLabel, getLoggiTracking } from "./loggi";
+import {
+  isMelhorEnvioEnabled,
+  getMelhorEnvioQuote,
+  addToMelhorEnvioCart,
+  checkoutMelhorEnvioCart,
+  generateMelhorEnvioLabel,
+  printMelhorEnvioLabel,
+  getMelhorEnvioTracking,
+  cancelMelhorEnvioShipment,
+  buildMelhorEnvioTrackingUrl,
+} from "./melhorenvio";
 import { registerObjectStorageRoutes } from "./replit_integrations/object_storage";
 import {
   sendVerificationEmail,
@@ -315,9 +326,15 @@ const sendOrderNotifications = async (
         statusClass: statusInfo.class,
         statusText: statusInfo.text,
         trackingCode: order.trackingCode || undefined,
-        trackingUrl: order.trackingCode
-          ? `https://www.linkcorreios.com.br/?id=${order.trackingCode}`
-          : undefined,
+        trackingUrl: (() => {
+          if ((order as any).melhorEnvioCartId || (order.shippingMethod || "").toLowerCase().includes("melhor envio")) {
+            const ref = (order as any).melhorEnvioProtocol || order.trackingCode;
+            if (ref) return buildMelhorEnvioTrackingUrl(ref);
+          }
+          return order.trackingCode
+            ? `https://www.linkcorreios.com.br/?id=${order.trackingCode}`
+            : undefined;
+        })(),
         orderUrl: `${baseUrl}/pedidos`,
       });
     }
@@ -1410,12 +1427,19 @@ export async function registerRoutes(
 
       const packageDimensions = calculatePackageDimensions(productData);
 
-      const [correiosOptions, loggiOptions] = await Promise.all([
-        calculateShipping({
-          originZip: STORE_ORIGIN_ZIP,
-          destinationZip,
-          ...packageDimensions,
-        }),
+      const insuranceValue = parseFloat(String(req.body.subtotal || "0")) || 0;
+
+      const correiosLocalEnabled =
+        (process.env.CORREIOS_LOCAL_ENABLED || "true").toLowerCase() !== "false";
+
+      const [correiosOptions, loggiOptions, melhorEnvioOptions] = await Promise.all([
+        correiosLocalEnabled
+          ? calculateShipping({
+              originZip: STORE_ORIGIN_ZIP,
+              destinationZip,
+              ...packageDimensions,
+            })
+          : Promise.resolve([]),
         isLoggiEnabled()
           ? getLoggiQuote({
               originZip: STORE_ORIGIN_ZIP,
@@ -1428,9 +1452,22 @@ export async function registerRoutes(
               }],
             })
           : Promise.resolve([]),
+        isMelhorEnvioEnabled()
+          ? getMelhorEnvioQuote({
+              originZip: STORE_ORIGIN_ZIP,
+              destinationZip,
+              packages: [{
+                weight: packageDimensions.weight,
+                height: packageDimensions.height,
+                width: packageDimensions.width,
+                length: packageDimensions.length,
+              }],
+              insuranceValue,
+            })
+          : Promise.resolve([]),
       ]);
 
-      const allOptions = [...correiosOptions, ...loggiOptions]
+      const allOptions = [...correiosOptions, ...loggiOptions, ...melhorEnvioOptions]
         .sort((a, b) => a.price - b.price);
 
       res.json({ options: allOptions, package: packageDimensions });
@@ -3216,6 +3253,255 @@ export async function registerRoutes(
 
   app.get("/api/shipping/loggi-status", (req, res) => {
     res.json({ enabled: isLoggiEnabled() });
+  });
+
+  app.get("/api/shipping/melhorenvio-status", (req, res) => {
+    res.json({ enabled: isMelhorEnvioEnabled() });
+  });
+
+  // ===== MELHOR ENVIO ADMIN ROUTES =====
+
+  app.post("/api/admin/orders/:id/melhorenvio/cart", requireAdmin, async (req, res) => {
+    try {
+      if (!isMelhorEnvioEnabled()) {
+        return res.status(503).json({ error: "Melhor Envio não está configurado" });
+      }
+
+      const orderData = await storage.getOrderWithItems(req.params.id);
+      if (!orderData) {
+        return res.status(404).json({ error: "Pedido não encontrado" });
+      }
+      const order = (orderData.order || orderData) as any;
+      const items = orderData.items || [];
+
+      if (order.melhorEnvioCartId) {
+        return res.status(400).json({
+          error: "Este pedido já possui uma remessa Melhor Envio criada",
+          cartId: order.melhorEnvioCartId,
+        });
+      }
+
+      // Try body first, then existing order field, then parse [me:NNN] from shippingMethod
+      let serviceId = parseInt(String(req.body.serviceId || order.melhorEnvioServiceId || "0"), 10);
+      if (!serviceId) {
+        const m = (order.shippingMethod || "").match(/\[me:(\d+)\]/);
+        if (m) serviceId = parseInt(m[1], 10);
+      }
+      if (!serviceId) {
+        return res.status(400).json({
+          error: "ID do serviço (serviceId) é obrigatório. Recalcule o frete e selecione uma opção do Melhor Envio.",
+        });
+      }
+
+      const STORE_ORIGIN_ZIP_LOCAL = process.env.STORE_ORIGIN_ZIP || "36015260";
+      const fromName = process.env.MELHOR_ENVIO_FROM_NAME || "Empório Gelada";
+      const fromPhone = process.env.MELHOR_ENVIO_FROM_PHONE || "553232365994";
+      const fromEmail = process.env.MELHOR_ENVIO_FROM_EMAIL || "contato@emporiogelada.com.br";
+      const fromDocument = process.env.MELHOR_ENVIO_FROM_DOCUMENT || "";
+      const fromCompanyDocument = process.env.MELHOR_ENVIO_FROM_COMPANY_DOCUMENT || undefined;
+      const fromAddress = process.env.MELHOR_ENVIO_FROM_ADDRESS || "Av. Pedro Henrique Krambeck";
+      const fromNumber = process.env.MELHOR_ENVIO_FROM_NUMBER || "1249";
+      const fromComplement = process.env.MELHOR_ENVIO_FROM_COMPLEMENT || undefined;
+      const fromDistrict = process.env.MELHOR_ENVIO_FROM_DISTRICT || "Centro";
+      const fromCity = process.env.MELHOR_ENVIO_FROM_CITY || "Juiz de Fora";
+      const fromState = process.env.MELHOR_ENVIO_FROM_STATE || "MG";
+
+      if (!fromDocument) {
+        return res.status(400).json({
+          error: "Configure MELHOR_ENVIO_FROM_DOCUMENT (CPF/CNPJ do remetente) nas variáveis de ambiente.",
+        });
+      }
+
+      const totalWeight = items.reduce((sum: number, it: any) => {
+        const w = parseFloat(String(it.weight || it.product?.weight || "0.5"));
+        return sum + w * (it.quantity || 1);
+      }, 0);
+      const maxHeight = Math.max(2, ...items.map((it: any) => parseFloat(String(it.height || it.product?.height || "10"))));
+      const maxWidth = Math.max(11, ...items.map((it: any) => parseFloat(String(it.width || it.product?.width || "15"))));
+      const sumLength = items.reduce((sum: number, it: any) => sum + parseFloat(String(it.length || it.product?.length || "20")) * (it.quantity || 1), 0);
+
+      const productsList = items.map((it: any) => ({
+        name: it.productName || it.product?.name || "Produto",
+        quantity: it.quantity || 1,
+        unitary_value: parseFloat(String(it.price || it.product?.price || "0")),
+      }));
+
+      const insuranceValue = parseFloat(String(order.totalAmount || order.total || "0")) || 0;
+
+      const destZip = (order.shippingZip || "").replace(/\D/g, "");
+      const destAddress = order.shippingAddress || "";
+      if (!destZip || !destAddress || !order.shippingCity) {
+        return res.status(400).json({
+          error: "Endereço de entrega incompleto. CEP, endereço e cidade são obrigatórios.",
+        });
+      }
+
+      const cartResult = await addToMelhorEnvioCart({
+        serviceId,
+        fromName,
+        fromPhone,
+        fromEmail,
+        fromDocument,
+        fromCompanyDocument,
+        fromAddress,
+        fromNumber,
+        fromComplement,
+        fromDistrict,
+        fromCity,
+        fromState,
+        fromZip: STORE_ORIGIN_ZIP_LOCAL,
+        toName: order.shippingName || order.customerName || "",
+        toPhone: (order.shippingPhone || order.customerPhone || "").replace(/\D/g, ""),
+        toEmail: order.shippingEmail || undefined,
+        toDocument: order.fiscalCpf || undefined,
+        toAddress: destAddress,
+        toNumber: order.shippingNumber || "S/N",
+        toComplement: order.shippingComplement || undefined,
+        toDistrict: order.shippingNeighborhood || order.shippingDistrict || "Centro",
+        toCity: order.shippingCity,
+        toState: order.shippingState || "",
+        toZip: destZip,
+        packageWeight: Math.max(0.1, totalWeight),
+        packageHeight: Math.max(2, Math.min(100, maxHeight)),
+        packageWidth: Math.max(11, Math.min(100, maxWidth)),
+        packageLength: Math.max(16, Math.min(100, sumLength)),
+        insuranceValue,
+        externalOrderId: req.params.id,
+        productsList,
+        collect: (process.env.MELHOR_ENVIO_COLLECT || "false").toLowerCase() === "true",
+        collectScheduledDate: process.env.MELHOR_ENVIO_COLLECT_DATE || undefined,
+      });
+
+      await storage.updateOrderMelhorEnvio(req.params.id, {
+        cartId: cartResult.cartId,
+        serviceId,
+        status: cartResult.status,
+        protocol: cartResult.protocol,
+      });
+
+      res.json(cartResult);
+    } catch (error: any) {
+      console.error("Melhor Envio cart error:", error);
+      let errorMsg = error.message || "Falha ao criar remessa Melhor Envio";
+      // Translate common ME 422 errors to clear Portuguese guidance
+      if (errorMsg.includes("unidade LATAM Cargo") || errorMsg.includes("LATAM")) {
+        errorMsg =
+          "LATAM Cargo éFácil requer agendamento de coleta ou unidade LATAM cadastrada. " +
+          "Ative a coleta configurando MELHOR_ENVIO_COLLECT=true nas variáveis de ambiente, " +
+          "ou escolha outro serviço (Jadlog, Correios) para este pedido.";
+      } else if (errorMsg.includes("solicitação de coleta")) {
+        errorMsg =
+          "Este serviço requer agendamento de coleta. Configure MELHOR_ENVIO_COLLECT=true nas variáveis de ambiente.";
+      }
+      res.status(500).json({ error: errorMsg });
+    }
+  });
+
+  app.post("/api/admin/orders/:id/melhorenvio/checkout", requireAdmin, async (req, res) => {
+    try {
+      if (!isMelhorEnvioEnabled()) {
+        return res.status(503).json({ error: "Melhor Envio não está configurado" });
+      }
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!order.melhorEnvioCartId) {
+        return res.status(400).json({ error: "Crie a remessa antes de pagar (carrinho)" });
+      }
+      const result = await checkoutMelhorEnvioCart([order.melhorEnvioCartId]);
+      await storage.updateOrderMelhorEnvio(req.params.id, {
+        status: result.paid ? "paid" : result.status,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("Melhor Envio checkout error:", error);
+      res.status(500).json({ error: error.message || "Falha ao pagar etiqueta Melhor Envio" });
+    }
+  });
+
+  app.post("/api/admin/orders/:id/melhorenvio/label", requireAdmin, async (req, res) => {
+    try {
+      if (!isMelhorEnvioEnabled()) {
+        return res.status(503).json({ error: "Melhor Envio não está configurado" });
+      }
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!order.melhorEnvioCartId) {
+        return res.status(400).json({ error: "Crie e pague a remessa antes de gerar a etiqueta" });
+      }
+      const generated = await generateMelhorEnvioLabel([order.melhorEnvioCartId]);
+      const printed = await printMelhorEnvioLabel([order.melhorEnvioCartId], "public");
+      const updateData: any = {
+        status: generated.status || "generated",
+        labelUrl: printed.url || undefined,
+      };
+      if (generated.trackingCode) {
+        updateData.trackingCode = generated.trackingCode;
+      }
+      await storage.updateOrderMelhorEnvio(req.params.id, updateData);
+      res.json({ status: generated.status, labelUrl: printed.url, trackingCode: generated.trackingCode });
+    } catch (error: any) {
+      console.error("Melhor Envio label error:", error);
+      res.status(500).json({ error: error.message || "Falha ao gerar etiqueta Melhor Envio" });
+    }
+  });
+
+  app.get("/api/admin/orders/:id/melhorenvio/tracking", requireAdmin, async (req, res) => {
+    try {
+      if (!isMelhorEnvioEnabled()) {
+        return res.status(503).json({ error: "Melhor Envio não está configurado" });
+      }
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!order.melhorEnvioCartId) {
+        return res.status(400).json({ error: "Sem remessa Melhor Envio para este pedido" });
+      }
+      const tracking = await getMelhorEnvioTracking([order.melhorEnvioCartId]);
+      const result = tracking[order.melhorEnvioCartId] || { status: "unknown", events: [] };
+
+      // Persist new tracking code if returned
+      const updates: any = { status: result.status };
+      if (result.trackingCode && result.trackingCode !== order.trackingCode) {
+        updates.trackingCode = result.trackingCode;
+      }
+      if (result.trackingCode || result.status) {
+        await storage.updateOrderMelhorEnvio(req.params.id, updates);
+      }
+
+      res.json(result);
+    } catch (error: any) {
+      console.error("Melhor Envio tracking error:", error);
+      res.status(500).json({ error: error.message || "Falha ao rastrear Melhor Envio" });
+    }
+  });
+
+  app.post("/api/admin/orders/:id/melhorenvio/cancel", requireAdmin, async (req, res) => {
+    try {
+      if (!isMelhorEnvioEnabled()) {
+        return res.status(503).json({ error: "Melhor Envio não está configurado" });
+      }
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: "Pedido não encontrado" });
+      if (!order.melhorEnvioCartId) {
+        return res.status(400).json({ error: "Sem remessa Melhor Envio para cancelar" });
+      }
+      const result = await cancelMelhorEnvioShipment(
+        order.melhorEnvioCartId,
+        parseInt(String(req.body.reasonId || "2"), 10),
+        String(req.body.description || "Cancelado pelo lojista"),
+      );
+      // Clear all ME fields so admin can create a new shipment
+      await storage.updateOrderMelhorEnvio(req.params.id, {
+        cartId: null,
+        serviceId: null,
+        status: null,
+        protocol: null,
+        labelUrl: null,
+      });
+      res.json(result);
+    } catch (error: any) {
+      console.error("Melhor Envio cancel error:", error);
+      res.status(500).json({ error: error.message || "Falha ao cancelar remessa" });
+    }
   });
 
   app.get(

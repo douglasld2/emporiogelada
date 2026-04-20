@@ -328,6 +328,173 @@ export default function AdminOrders() {
                 </p>
               </div>
 
+              {(selectedOrder.shippingMethod?.toLowerCase().includes('melhor envio') ||
+                selectedOrder.shippingMethod?.toLowerCase().includes('jadlog') ||
+                selectedOrder.shippingMethod?.toLowerCase().includes('jamef') ||
+                selectedOrder.shippingMethod?.toLowerCase().includes('latam') ||
+                selectedOrder.shippingMethod?.toLowerCase().includes('azul cargo') ||
+                selectedOrder.shippingMethod?.toLowerCase().includes('correios') ||
+                (selectedOrder as any).melhorEnvioCartId) && (
+                <div className="border-t border-gray-100 pt-4">
+                  <h4 className="text-xs text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-[#c9a96e]" />
+                    Melhor Envio
+                  </h4>
+                  <div className="space-y-2">
+                    {!(selectedOrder as any).melhorEnvioCartId ? (
+                      <Button
+                        size="sm"
+                        className="w-full bg-[#c9a96e] hover:bg-[#b8944f] text-black"
+                        onClick={async () => {
+                          const sid = window.prompt(
+                            'ID do serviço Melhor Envio (deixe em branco para usar o do pedido):',
+                            String((selectedOrder as any).melhorEnvioServiceId || '')
+                          );
+                          if (sid === null) return;
+                          try {
+                            const res = await fetch(`/api/admin/orders/${selectedOrder.id}/melhorenvio/cart`, {
+                              method: 'POST',
+                              credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ serviceId: sid ? parseInt(sid, 10) : undefined }),
+                            });
+                            const data = await res.json();
+                            if (!res.ok) throw new Error(data.error);
+                            await fetchOrderDetails(selectedOrder.id);
+                            queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+                          } catch (e: any) {
+                            alert('Erro ao criar remessa: ' + e.message);
+                          }
+                        }}
+                        data-testid="button-create-melhorenvio-cart"
+                      >
+                        <Package className="w-4 h-4 mr-2" />
+                        Criar Remessa Melhor Envio
+                      </Button>
+                    ) : (
+                      <>
+                        <div className="bg-[#c9a96e]/10 p-3 rounded-lg text-sm">
+                          <p className="font-medium text-[#c9a96e]">Remessa criada</p>
+                          <p className="text-xs text-gray-600 font-mono mt-1 break-all">ID: {(selectedOrder as any).melhorEnvioCartId}</p>
+                          {(selectedOrder as any).melhorEnvioStatus && (
+                            <p className="text-xs text-gray-600 mt-1">Status: <span className="font-medium">{(selectedOrder as any).melhorEnvioStatus}</span></p>
+                          )}
+                          {(selectedOrder as any).melhorEnvioProtocol && (
+                            <p className="text-xs text-gray-600 mt-1">Protocolo: <span className="font-mono">{(selectedOrder as any).melhorEnvioProtocol}</span></p>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-[#c9a96e] text-[#c9a96e] hover:bg-[#c9a96e]/10"
+                            onClick={async () => {
+                              if (!confirm('Pagar a etiqueta no Melhor Envio? Saldo da carteira será debitado.')) return;
+                              try {
+                                const res = await fetch(`/api/admin/orders/${selectedOrder.id}/melhorenvio/checkout`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error);
+                                alert(data.paid ? 'Etiqueta paga!' : `Status: ${data.status}`);
+                                await fetchOrderDetails(selectedOrder.id);
+                                queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+                              } catch (e: any) {
+                                alert('Erro ao pagar etiqueta: ' + e.message);
+                              }
+                            }}
+                            data-testid="button-melhorenvio-checkout"
+                          >
+                            Pagar Etiqueta
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-[#c9a96e] text-[#c9a96e] hover:bg-[#c9a96e]/10"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/admin/orders/${selectedOrder.id}/melhorenvio/label`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error);
+                                if (data.labelUrl) {
+                                  window.open(data.labelUrl, '_blank');
+                                } else {
+                                  alert('Etiqueta gerada. Verifique o painel Melhor Envio.');
+                                }
+                                await fetchOrderDetails(selectedOrder.id);
+                                queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+                              } catch (e: any) {
+                                alert('Erro ao gerar etiqueta: ' + e.message);
+                              }
+                            }}
+                            data-testid="button-melhorenvio-label"
+                          >
+                            <Tag className="w-4 h-4 mr-1" />
+                            Etiqueta
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-[#c9a96e] text-[#c9a96e] hover:bg-[#c9a96e]/10"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/admin/orders/${selectedOrder.id}/melhorenvio/tracking`, {
+                                  credentials: 'include',
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error);
+                                const events = (data.events || []).slice(0, 5).map((e: any) =>
+                                  `${e.date}: ${e.description}`
+                                ).join('\n');
+                                alert(`Status: ${data.status}\n${data.trackingCode ? 'Rastreio: ' + data.trackingCode + '\n' : ''}\n${events || 'Sem eventos recentes'}`);
+                                await fetchOrderDetails(selectedOrder.id);
+                                queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+                              } catch (e: any) {
+                                alert('Erro ao rastrear: ' + e.message);
+                              }
+                            }}
+                            data-testid="button-melhorenvio-tracking"
+                          >
+                            <MapPin className="w-4 h-4 mr-1" />
+                            Rastrear
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-300 text-red-600 hover:bg-red-50"
+                            onClick={async () => {
+                              if (!confirm('Cancelar a remessa Melhor Envio? Esta ação só funciona se ainda não foi postada.')) return;
+                              try {
+                                const res = await fetch(`/api/admin/orders/${selectedOrder.id}/melhorenvio/cancel`, {
+                                  method: 'POST',
+                                  credentials: 'include',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ reasonId: 2, description: 'Cancelado pelo lojista' }),
+                                });
+                                const data = await res.json();
+                                if (!res.ok) throw new Error(data.error);
+                                alert('Remessa cancelada.');
+                                await fetchOrderDetails(selectedOrder.id);
+                                queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+                              } catch (e: any) {
+                                alert('Erro ao cancelar: ' + e.message);
+                              }
+                            }}
+                            data-testid="button-melhorenvio-cancel"
+                          >
+                            Cancelar
+                          </Button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {selectedOrder.shippingMethod?.toLowerCase().includes('loggi') && (
                 <div className="border-t border-gray-100 pt-4">
                   <h4 className="text-xs text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2">

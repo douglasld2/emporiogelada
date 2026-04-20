@@ -73,6 +73,14 @@ export interface IStorage {
   createGuestOrder(order: Omit<InsertOrder, 'userId'>, items: InsertOrderItem[]): Promise<Order>;
   updateOrderStatus(id: string, status: string, trackingCode?: string): Promise<Order | undefined>;
   updateOrderLoggiInfo(id: string, loggiKey: string, loggiShipmentId: string, trackingCode?: string): Promise<Order | undefined>;
+  updateOrderMelhorEnvio(id: string, data: {
+    cartId?: string | null;
+    serviceId?: number | null;
+    status?: string | null;
+    protocol?: string | null;
+    labelUrl?: string | null;
+    trackingCode?: string;
+  }): Promise<Order | undefined>;
   getUserOrderStats(userId: string): Promise<{ total: number; shipped: number; delivered: number }>;
   
   createPayment(payment: InsertPayment): Promise<Payment>;
@@ -571,6 +579,32 @@ export class DatabaseStorage implements IStorage {
     const updateData: any = { loggiKey, loggiShipmentId };
     if (trackingCode) {
       updateData.trackingCode = trackingCode;
+    }
+    const [updated] = await db
+      .update(orders)
+      .set(updateData)
+      .where(eq(orders.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateOrderMelhorEnvio(id: string, data: {
+    cartId?: string | null;
+    serviceId?: number | null;
+    status?: string | null;
+    protocol?: string | null;
+    labelUrl?: string | null;
+    trackingCode?: string;
+  }): Promise<Order | undefined> {
+    const updateData: any = {};
+    if (data.cartId !== undefined) updateData.melhorEnvioCartId = data.cartId;
+    if (data.serviceId !== undefined) updateData.melhorEnvioServiceId = data.serviceId;
+    if (data.status !== undefined) updateData.melhorEnvioStatus = data.status;
+    if (data.protocol !== undefined) updateData.melhorEnvioProtocol = data.protocol;
+    if (data.labelUrl !== undefined) updateData.melhorEnvioLabelUrl = data.labelUrl;
+    if (data.trackingCode !== undefined) updateData.trackingCode = data.trackingCode;
+    if (Object.keys(updateData).length === 0) {
+      return await this.getOrder(id);
     }
     const [updated] = await db
       .update(orders)

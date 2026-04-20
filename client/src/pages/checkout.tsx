@@ -39,6 +39,9 @@ interface ShippingOption {
   serviceCode: string;
   price: number;
   deliveryTime: number;
+  company?: string;
+  companyPicture?: string;
+  meServiceId?: number;
   error?: string;
 }
 
@@ -302,7 +305,9 @@ export default function Checkout() {
           shippingCost: shippingCost,
           shippingMethod: selectedShipping?.serviceCode?.startsWith("loggi")
             ? `Loggi - ${selectedShipping?.service || "Express"}`
-            : selectedShipping?.service || "PAC",
+            : selectedShipping?.serviceCode?.startsWith("melhorenvio_")
+              ? `Melhor Envio - ${selectedShipping?.service || ""} [me:${selectedShipping.serviceCode.replace("melhorenvio_", "")}]`
+              : selectedShipping?.service || "PAC",
           couponCode: appliedCoupon?.code || null,
           couponDiscount: couponDiscount || 0,
           cashbackDiscount:
@@ -1234,31 +1239,53 @@ export default function Checkout() {
                           value={option.serviceCode}
                           id={option.serviceCode}
                         />
-                        <div>
-                          <Label
-                            htmlFor={option.serviceCode}
-                            className="font-medium text-gray-900 cursor-pointer flex items-center gap-2"
-                          >
-                            {option.serviceCode?.startsWith("loggi") ? (
-                              <Truck className="w-4 h-4 text-[#c9a96e]" />
-                            ) : option.service === "SEDEX" ? (
-                              <Truck className="w-4 h-4 text-blue-600" />
-                            ) : (
-                              <Package className="w-4 h-4 text-green-600" />
-                            )}
-                            {option.service}
-                            {option.serviceCode?.startsWith("loggi") && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-[#c9a96e]/10 text-[#c9a96e] rounded font-semibold uppercase">
-                                Loggi
-                              </span>
-                            )}
-                          </Label>
-                          <p className="text-xs text-gray-500 mt-1">
-                            Entrega em {option.deliveryTime}{" "}
-                            {option.deliveryTime === 1
-                              ? "dia útil"
-                              : "dias úteis"}
-                          </p>
+                        <div className="flex items-center gap-3">
+                          {option.companyPicture ? (
+                            <img
+                              src={option.companyPicture}
+                              alt={option.company || option.service}
+                              className="w-10 h-10 object-contain rounded bg-white border border-gray-200 p-1"
+                              loading="lazy"
+                            />
+                          ) : option.serviceCode?.startsWith("loggi") ? (
+                            <div className="w-10 h-10 rounded bg-[#c9a96e]/10 flex items-center justify-center">
+                              <Truck className="w-5 h-5 text-[#c9a96e]" />
+                            </div>
+                          ) : option.service === "SEDEX" ? (
+                            <div className="w-10 h-10 rounded bg-blue-50 flex items-center justify-center">
+                              <Truck className="w-5 h-5 text-blue-600" />
+                            </div>
+                          ) : (
+                            <div className="w-10 h-10 rounded bg-green-50 flex items-center justify-center">
+                              <Package className="w-5 h-5 text-green-600" />
+                            </div>
+                          )}
+                          <div>
+                            <Label
+                              htmlFor={option.serviceCode}
+                              className="font-medium text-gray-900 cursor-pointer flex items-center gap-2 flex-wrap"
+                            >
+                              {option.service}
+                              {option.serviceCode?.startsWith("loggi") && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-[#c9a96e]/10 text-[#c9a96e] rounded font-semibold uppercase">
+                                  Loggi
+                                </span>
+                              )}
+                              {option.serviceCode?.startsWith(
+                                "melhorenvio_",
+                              ) && (
+                                <span className="text-[10px] px-1.5 py-0.5 bg-emerald-50 text-emerald-700 rounded font-semibold uppercase">
+                                  Melhor Envio
+                                </span>
+                              )}
+                            </Label>
+                            <p className="text-xs text-gray-500 mt-1">
+                              Entrega em {option.deliveryTime}{" "}
+                              {option.deliveryTime === 1
+                                ? "dia útil"
+                                : "dias úteis"}
+                            </p>
+                          </div>
                         </div>
                       </div>
                       <span className="font-medium text-gray-900">

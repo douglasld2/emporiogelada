@@ -29,6 +29,7 @@ export function Navigation({ forceDark }: NavigationProps) {
   const topLinks = [
     { label: "Início", href: "/" },
     { label: "Loja", href: "/shop" },
+    { label: "Kits & Presentes", href: "/kits" },
   ];
 
   const bottomLinks = [

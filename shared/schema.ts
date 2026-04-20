@@ -225,6 +225,11 @@ export const orders = pgTable("orders", {
   trackingCode: text("tracking_code"),
   loggiKey: text("loggi_key"),
   loggiShipmentId: text("loggi_shipment_id"),
+  melhorEnvioCartId: text("melhor_envio_cart_id"),
+  melhorEnvioServiceId: integer("melhor_envio_service_id"),
+  melhorEnvioStatus: text("melhor_envio_status"),
+  melhorEnvioProtocol: text("melhor_envio_protocol"),
+  melhorEnvioLabelUrl: text("melhor_envio_label_url"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

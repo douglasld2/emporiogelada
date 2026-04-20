@@ -40,6 +40,9 @@ function isConfigured(): boolean {
 }
 
 export function isLoggiEnabled(): boolean {
+  if ((process.env.LOGGI_ENABLED || "true").toLowerCase() === "false") {
+    return false;
+  }
   return isConfigured();
 }
 

@@ -1,4 +1,4 @@
-  modules = ["nodejs-20", "web", "postgresql-16"]
+modules = ["nodejs-20", "web", "postgresql-16"]
   run = "npm run dev"
   hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
   
@@ -115,4 +115,9 @@ externalPort = 3001
   
   [userenv.shared]
   ORDER_PREFIX = "EG"
+STORE_ORIGIN_ZIP = "36015260"
+CORREIOS_LOCAL_ENABLED = "false"
+LOGGI_ENABLED = "false"
+MELHOR_ENVIO_SANDBOX = "true"
+SMTP_SECURE = "true"
   
