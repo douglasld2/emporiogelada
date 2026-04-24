@@ -29,11 +29,12 @@ steps:
 
       # ── Variáveis de ambiente (não sensíveis) ─────────────────────────────
       - --set-env-vars=NODE_ENV=production
+      - --set-env-vars=PORT=5000
 
       # Loja / pedidos
       - --set-env-vars=ORDER_PREFIX=EG
       - --set-env-vars=STORE_ORIGIN_ZIP=36015260
-      - --set-env-vars=URL_APP=https://loja.emporiogelada.com.br
+      - --set-env-vars=URL_APP=https://SEU_DOMINIO_AQUI
 
       # Melhor Envio — comportamento
       - --set-env-vars=MELHOR_ENVIO_SANDBOX=false
@@ -53,34 +54,35 @@ steps:
 
       # E-mail SMTP (host/porta não sensíveis)
       - --set-env-vars=SMTP_HOST=smtp.gmail.com
-      - --set-env-vars=SMTP_PORT=465
-      - --set-env-vars=SMTP_SECURE=true
-      - --set-env-vars=SMTP_FROM=contato@emporiogelada.com.br
+      - --set-env-vars=SMTP_PORT=587
+      - --set-env-vars=SMTP_SECURE=false
+      - --set-env-vars=SMTP_FROM=Empório Gelada <noreply@emporiogelada.com.br>
 
       # Carriers — flags de ativação
       - --set-env-vars=CORREIOS_LOCAL_ENABLED=false
       - --set-env-vars=LOGGI_ENABLED=false
+      - --set-env-vars=MELHOR_ENVIO_SANDBOX=true
 
       # ── Secrets (Secret Manager → variáveis de ambiente) ─────────────────
       # Crie cada secret com: gcloud secrets create NOME --data-file=-
       # Formato: ENV_VAR=nome-do-secret:versão
-      - --set-secrets=DATABASE_URL=EG_DATABASE_URL:latest
-      - --set-secrets=SESSION_SECRET=EG_SESSION_SECRET:latest
+      - --set-secrets=DATABASE_URL=DATABASE_URL:latest
+      - --set-secrets=SESSION_SECRET=SESSION_SECRET:latest
 
       # MercadoPago
-      - --set-secrets=MERCADOPAGO_ACCESS_TOKEN=EG_MERCADOPAGO_ACCESS_TOKEN:latest
-      - --set-secrets=MERCADOPAGO_PUBLIC_KEY=EG_MERCADOPAGO_PUBLIC_KEY:latest
-      - --set-secrets=MERCADOPAGO_WEBHOOK_SECRET=EG_MERCADOPAGO_WEBHOOK_SECRET:latest
+      - --set-secrets=MERCADOPAGO_ACCESS_TOKEN=MERCADOPAGO_ACCESS_TOKEN:latest
+      - --set-secrets=MERCADOPAGO_PUBLIC_KEY=MERCADOPAGO_PUBLIC_KEY:latest
+      - --set-secrets=MERCADOPAGO_WEBHOOK_SECRET=MERCADOPAGO_WEBHOOK_SECRET:latest
 
       # Melhor Envio — credenciais e dados sensíveis
-      - --set-secrets=MELHOR_ENVIO_TOKEN=EG_MELHOR_ENVIO_TOKEN:latest
-      - --set-secrets=MELHOR_ENVIO_FROM_DOCUMENT=EG_MELHOR_ENVIO_FROM_DOCUMENT:latest
+      - --set-secrets=MELHOR_ENVIO_TOKEN=MELHOR_ENVIO_TOKEN:latest
+      - --set-secrets=MELHOR_ENVIO_FROM_DOCUMENT=MELHOR_ENVIO_FROM_DOCUMENT:latest
       # - --set-secrets=MELHOR_ENVIO_FROM_COMPANY_DOCUMENT=MELHOR_ENVIO_FROM_COMPANY_DOCUMENT:latest  # se CNPJ diferente do CPF
       # - --set-secrets=MELHOR_ENVIO_USER_AGENT=MELHOR_ENVIO_USER_AGENT:latest  # opcional
 
       # E-mail SMTP — credenciais
-      - --set-secrets=SMTP_USER=EG_SMTP_USER:latest
-      - --set-secrets=SMTP_PASS=EG_SMTP_PASS:latest
+      - --set-secrets=SMTP_USER=SMTP_USER:latest
+      - --set-secrets=SMTP_PASS=SMTP_PASS:latest
 
       # Loggi (desativado por padrão — descomentar quando habilitar)
       # - --set-secrets=LOGGI_CLIENT_ID=LOGGI_CLIENT_ID:latest
@@ -88,8 +90,8 @@ steps:
       # - --set-secrets=LOGGI_COMPANY_ID=LOGGI_COMPANY_ID:latest
 
       # Object Storage (GCS)
-      - --set-secrets=GCS_BUCKET_NAME=EG_GCS_BUCKET_NAME:latest
-      - --set-secrets=GCS_SERVICE_ACCOUNT_KEY=EG_GCS_SERVICE_ACCOUNT_KEY:latest
+      - --set-secrets=GCS_BUCKET_NAME=GCS_BUCKET_NAME:latest
+      - --set-secrets=GCS_SERVICE_ACCOUNT_KEY=GCS_SERVICE_ACCOUNT_KEY:latest
 
 options:
   logging: CLOUD_LOGGING_ONLY

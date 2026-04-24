@@ -1,7 +1,7 @@
 import { AccountLayout } from '@/components/AccountLayout';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Package, ShoppingBag, AlertCircle, CreditCard, Loader2, Eye, Truck, Calendar, MapPin, X } from 'lucide-react';
+import { Package, ShoppingBag, AlertCircle, CreditCard, Loader2, Eye, Truck, Calendar, MapPin, CheckCircle2, Circle, ExternalLink, RefreshCw } from 'lucide-react';
 import { Link, useLocation } from 'wouter';
 import { useAuth } from '@/lib/AuthContext';
 import { useOrders } from '@/lib/api';
@@ -44,8 +44,204 @@ interface OrderDetailsResponse {
     trackingCode?: string | null;
     paymentMethod?: string;
     createdAt: string;
+    melhorEnvioCartId?: string | null;
+    melhorEnvioProtocol?: string | null;
   };
   items: OrderItem[];
+}
+
+interface TrackingResponse {
+  trackingCode: string | null;
+  trackingUrl: string | null;
+  carrier: string;
+  isME: boolean;
+  events: Array<{
+    date: string;
+    status: string;
+    description: string;
+    location?: string;
+  }>;
+}
+
+const STATUS_STEPS = [
+  { key: 'pending',    label: 'Confirmado',       icon: CheckCircle2 },
+  { key: 'processing', label: 'Em preparo',        icon: Package },
+  { key: 'shipped',    label: 'Enviado',           icon: Truck },
+  { key: 'delivered',  label: 'Entregue',          icon: CheckCircle2 },
+];
+
+function getStepIndex(status: string) {
+  switch (status?.toLowerCase()) {
+    case 'pending':    return 0;
+    case 'processing': return 1;
+    case 'shipped':    return 2;
+    case 'delivered':  return 3;
+    default:           return 0;
+  }
+}
+
+function StatusStepper({ status }: { status: string }) {
+  if (status === 'cancelled') {
+    return (
+      <div className="flex items-center gap-2 text-sm text-red-500 bg-red-50 rounded-lg px-4 py-2">
+        <Circle className="w-4 h-4" />
+        Pedido cancelado
+      </div>
+    );
+  }
+  const current = getStepIndex(status);
+  return (
+    <div className="flex items-center gap-0">
+      {STATUS_STEPS.map((step, i) => {
+        const done = i <= current;
+        const active = i === current;
+        return (
+          <div key={step.key} className="flex items-center">
+            <div className="flex flex-col items-center">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors ${
+                done
+                  ? active
+                    ? 'bg-[#c9a96e] text-black'
+                    : 'bg-[#c9a96e]/30 text-[#c9a96e]'
+                  : 'bg-gray-100 text-gray-300'
+              }`}>
+                <step.icon className="w-3.5 h-3.5" />
+              </div>
+              <span className={`text-[10px] mt-1 text-center leading-tight max-w-[56px] ${
+                done ? (active ? 'text-[#c9a96e] font-semibold' : 'text-gray-500') : 'text-gray-300'
+              }`}>
+                {step.label}
+              </span>
+            </div>
+            {i < STATUS_STEPS.length - 1 && (
+              <div className={`h-0.5 w-8 mb-4 transition-colors ${
+                i < current ? 'bg-[#c9a96e]/40' : 'bg-gray-100'
+              }`} />
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function TrackingPanel({ orderId }: { orderId: string }) {
+  const [enabled, setEnabled] = useState(false);
+
+  const { data, isLoading, refetch } = useQuery<TrackingResponse>({
+    queryKey: ['order-tracking', orderId],
+    queryFn: async () => {
+      const res = await fetch(`/api/orders/${orderId}/tracking`, { credentials: 'include' });
+      if (!res.ok) throw new Error('Falha ao buscar rastreio');
+      return res.json();
+    },
+    enabled,
+    staleTime: 60_000,
+  });
+
+  if (!enabled) {
+    return (
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full border-[#c9a96e] text-[#c9a96e] hover:bg-[#c9a96e]/10"
+        onClick={() => setEnabled(true)}
+        data-testid="button-load-tracking"
+      >
+        <Truck className="w-4 h-4 mr-2" />
+        Rastrear Pedido
+      </Button>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-4">
+        <Loader2 className="w-5 h-5 animate-spin text-[#c9a96e]" />
+        <span className="ml-2 text-sm text-gray-500">Buscando rastreio...</span>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  return (
+    <div className="space-y-3">
+      {/* Carrier + code */}
+      <div className="flex items-center justify-between bg-gray-50 rounded-lg px-4 py-3">
+        <div>
+          <p className="text-xs text-gray-400 uppercase tracking-widest mb-0.5">{data.carrier}</p>
+          {data.trackingCode ? (
+            <p className="font-mono text-sm font-medium text-gray-800">{data.trackingCode}</p>
+          ) : (
+            <p className="text-sm text-gray-400 italic">Código ainda não disponível</p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => refetch()}
+            className="p-1.5 rounded-md hover:bg-gray-200 text-gray-400 hover:text-gray-600 transition-colors"
+            title="Atualizar"
+            data-testid="button-refresh-tracking"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+          {data.trackingUrl && (
+            <a
+              href={data.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="link-tracking-external"
+            >
+              <Button size="sm" className="bg-black text-white hover:bg-gray-800 h-8 text-xs">
+                <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
+                Ver no site
+              </Button>
+            </a>
+          )}
+        </div>
+      </div>
+
+      {/* Timeline of events */}
+      {data.events.length > 0 ? (
+        <div className="space-y-1">
+          <p className="text-xs uppercase tracking-widest text-gray-400 mb-2">Histórico</p>
+          <div className="relative">
+            <div className="absolute left-3 top-0 bottom-0 w-px bg-gray-100" />
+            {data.events.map((ev, i) => (
+              <div key={i} className="relative flex gap-4 pb-4 last:pb-0">
+                <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 ${
+                  i === 0 ? 'bg-[#c9a96e] text-black' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  <Truck className="w-3 h-3" />
+                </div>
+                <div className="flex-1 pb-1">
+                  <p className={`text-sm ${i === 0 ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
+                    {ev.description || ev.status}
+                  </p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {ev.date && (
+                      <span className="text-xs text-gray-400">{ev.date}</span>
+                    )}
+                    {ev.location && (
+                      <span className="text-xs text-gray-400 flex items-center gap-0.5">
+                        <MapPin className="w-3 h-3" />
+                        {ev.location}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : data.trackingCode ? (
+        <p className="text-xs text-gray-400 text-center py-2">
+          Nenhum evento registrado ainda. O rastreio pode demorar até 24h para aparecer.
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export default function AccountOrders() {
@@ -60,9 +256,7 @@ export default function AccountOrders() {
     queryKey: ['orderDetails', selectedOrderId],
     queryFn: async () => {
       if (!selectedOrderId) throw new Error('No order selected');
-      const res = await fetch(`/api/orders/${selectedOrderId}`, {
-        credentials: 'include',
-      });
+      const res = await fetch(`/api/orders/${selectedOrderId}`, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch order details');
       return res.json();
     },
@@ -77,29 +271,18 @@ export default function AccountOrders() {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
       });
-      
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Erro ao gerar novo pagamento');
       }
-      
       const data = await response.json();
-      
       if (data.initPoint) {
         window.location.href = data.initPoint;
       } else {
-        toast({
-          title: 'Erro',
-          description: 'Não foi possível gerar o link de pagamento',
-          variant: 'destructive',
-        });
+        toast({ title: 'Erro', description: 'Não foi possível gerar o link de pagamento', variant: 'destructive' });
       }
     } catch (error: any) {
-      toast({
-        title: 'Erro',
-        description: error.message || 'Erro ao tentar pagar novamente',
-        variant: 'destructive',
-      });
+      toast({ title: 'Erro', description: error.message || 'Erro ao tentar pagar novamente', variant: 'destructive' });
     } finally {
       setRetryingPayment(null);
     }
@@ -115,52 +298,36 @@ export default function AccountOrders() {
     );
   }
 
-  if (!user) {
-    navigate('/login');
-    return null;
-  }
+  if (!user) { navigate('/login'); return null; }
 
   const orders = orderData?.orders || [];
   const pendingPayments = orderData?.pendingPayments || [];
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'delivered':
-        return 'bg-green-50 text-green-600';
-      case 'shipped':
-        return 'bg-orange-50 text-orange-600';
-      case 'processing':
-        return 'bg-blue-50 text-blue-600';
-      case 'pending':
-        return 'bg-yellow-50 text-yellow-600';
-      default:
-        return 'bg-gray-50 text-gray-600';
+      case 'delivered':  return 'bg-green-50 text-green-600';
+      case 'shipped':    return 'bg-orange-50 text-orange-600';
+      case 'processing': return 'bg-blue-50 text-blue-600';
+      case 'pending':    return 'bg-yellow-50 text-yellow-600';
+      case 'cancelled':  return 'bg-red-50 text-red-600';
+      default:           return 'bg-gray-50 text-gray-600';
     }
   };
 
   const translateStatus = (status: string) => {
     switch (status?.toLowerCase()) {
-      case 'delivered':
-        return 'Entregue';
-      case 'shipped':
-        return 'Enviado';
-      case 'processing':
-        return 'Processando';
-      case 'pending':
-        return 'Pendente';
-      case 'cancelled':
-        return 'Cancelado';
-      default:
-        return status;
+      case 'delivered':  return 'Entregue';
+      case 'shipped':    return 'Enviado';
+      case 'processing': return 'Em preparo';
+      case 'pending':    return 'Confirmado';
+      case 'cancelled':  return 'Cancelado';
+      default:           return status;
     }
   };
 
   const formatCurrency = (amount: string | number) => {
     const value = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL',
-    }).format(value);
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
   const detailOrder = orderDetailsData?.order;
@@ -180,23 +347,15 @@ export default function AccountOrders() {
             Pagamentos Pendentes
           </h2>
           {pendingPayments.map(payment => (
-            <div
-              key={payment.id}
-              className="bg-yellow-50 border border-yellow-200 rounded-lg p-6"
-              data-testid={`card-pending-payment-${payment.id}`}
-            >
+            <div key={payment.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-6" data-testid={`card-pending-payment-${payment.id}`}>
               <div className="flex flex-col md:flex-row justify-between md:items-center gap-4">
                 <div>
-                  <p className="font-medium text-yellow-900">
-                    Pagamento Pendente - {formatCurrency(payment.amount)}
-                  </p>
+                  <p className="font-medium text-yellow-900">Pagamento Pendente - {formatCurrency(payment.amount)}</p>
                   <p className="text-sm text-yellow-700 mt-1">
                     Criado em {format(new Date(payment.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </p>
                   {payment.pendingOrderData && (
-                    <p className="text-xs text-yellow-600 mt-2">
-                      Aguardando confirmação do pagamento para criar o pedido
-                    </p>
+                    <p className="text-xs text-yellow-600 mt-2">Aguardando confirmação do pagamento para criar o pedido</p>
                   )}
                 </div>
                 <div className="flex items-center gap-3">
@@ -210,15 +369,9 @@ export default function AccountOrders() {
                     data-testid={`button-retry-payment-${payment.id}`}
                   >
                     {retryingPayment === payment.id ? (
-                      <>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Gerando...
-                      </>
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Gerando...</>
                     ) : (
-                      <>
-                        <CreditCard className="w-4 h-4 mr-2" />
-                        Pagar Agora
-                      </>
+                      <><CreditCard className="w-4 h-4 mr-2" />Pagar Agora</>
                     )}
                   </Button>
                 </div>
@@ -233,12 +386,9 @@ export default function AccountOrders() {
       ) : orders.length > 0 ? (
         <div className="space-y-6">
           {orders.map(order => (
-            <div
-              key={order.id}
-              className="bg-white border border-gray-100 rounded-lg shadow-sm p-6 transition-all hover:shadow-md"
-              data-testid={`card-order-${order.id}`}
-            >
-              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6 border-b border-gray-50 pb-4">
+            <div key={order.id} className="bg-white border border-gray-100 rounded-lg shadow-sm p-6 transition-all hover:shadow-md" data-testid={`card-order-${order.id}`}>
+              {/* Header */}
+              <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-5 pb-4 border-b border-gray-50">
                 <div className="flex items-center gap-4">
                   <div className="p-3 bg-gray-50 rounded-full">
                     <Package className="w-5 h-5 text-gray-600" />
@@ -248,7 +398,7 @@ export default function AccountOrders() {
                       Pedido #{order.orderNumber || order.id.slice(0, 8).toUpperCase()}
                     </p>
                     <p className="text-xs text-gray-500">
-                      Realizado em {order.createdAt ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : 'N/A'}
+                      {order.createdAt ? format(new Date(order.createdAt), "dd 'de' MMMM 'de' yyyy", { locale: ptBR }) : 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -262,33 +412,19 @@ export default function AccountOrders() {
                 </div>
               </div>
 
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
-                <div className="space-y-2">
-                  <p className="text-xs uppercase tracking-widest text-gray-400">Enviar Para</p>
-                  <div className="text-sm text-gray-700">
-                    <p className="font-medium">{order.shippingName}</p>
-                    <p>{order.shippingAddress}</p>
-                    <p>
-                      {order.shippingCity}, {order.shippingZip}
-                    </p>
-                  </div>
-                  {order.trackingCode && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">Código de Rastreio</p>
-                      <a 
-                        href={`https://www.linkcorreios.com.br/?id=${order.trackingCode}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm font-mono text-blue-600 hover:underline flex items-center gap-1"
-                      >
-                        <Truck className="w-4 h-4" />
-                        {order.trackingCode}
-                      </a>
-                    </div>
-                  )}
-                </div>
+              {/* Progress stepper */}
+              <div className="mb-5 overflow-x-auto">
+                <StatusStepper status={order.status} />
+              </div>
 
-                <div className="flex gap-3 w-full md:w-auto">
+              {/* Address + actions */}
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                <div className="text-sm text-gray-700">
+                  <p className="text-xs uppercase tracking-widest text-gray-400 mb-1">Enviar para</p>
+                  <p className="font-medium">{order.shippingName}</p>
+                  <p className="text-gray-500">{order.shippingAddress} — {order.shippingCity}</p>
+                </div>
+                <div className="flex gap-2 w-full md:w-auto flex-wrap">
                   <Button
                     variant="outline"
                     onClick={() => setSelectedOrderId(order.id)}
@@ -299,11 +435,7 @@ export default function AccountOrders() {
                     Ver Detalhes
                   </Button>
                   <Link href={`/account/support?order=${order.orderNumber || order.id.slice(0, 8)}`}>
-                    <Button
-                      variant="outline"
-                      className="flex-1 md:flex-none border-gray-200 rounded-lg uppercase tracking-widest text-xs h-10"
-                      data-testid={`button-order-help-${order.id}`}
-                    >
+                    <Button variant="outline" className="flex-1 md:flex-none border-gray-200 rounded-lg uppercase tracking-widest text-xs h-10" data-testid={`button-order-help-${order.id}`}>
                       Precisa de Ajuda?
                     </Button>
                   </Link>
@@ -320,21 +452,19 @@ export default function AccountOrders() {
           <h3 className="font-serif text-lg mb-2">Nenhum pedido ainda</h3>
           <p className="text-gray-500 mb-6">Quando você fizer um pedido, ele aparecerá aqui</p>
           <Link href="/shop">
-            <Button
-              className="bg-black text-white hover:bg-gray-800 rounded-lg uppercase tracking-widest text-xs h-10"
-              data-testid="button-start-shopping"
-            >
+            <Button className="bg-black text-white hover:bg-gray-800 rounded-lg uppercase tracking-widest text-xs h-10" data-testid="button-start-shopping">
               Começar a Comprar
             </Button>
           </Link>
         </div>
       ) : null}
 
+      {/* Order Details Dialog */}
       <Dialog open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-serif text-xl">
-              Detalhes do Pedido #{detailOrder?.orderNumber || detailOrder?.id.slice(0, 8).toUpperCase() || '...'}
+              Pedido #{detailOrder?.orderNumber || detailOrder?.id.slice(0, 8).toUpperCase() || '...'}
             </DialogTitle>
           </DialogHeader>
 
@@ -345,6 +475,7 @@ export default function AccountOrders() {
             </div>
           ) : detailOrder ? (
             <div className="space-y-6">
+              {/* Status + date */}
               <div className="flex items-center gap-3 pb-4 border-b border-gray-100">
                 <span className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(detailOrder.status)}`}>
                   {translateStatus(detailOrder.status)}
@@ -355,6 +486,23 @@ export default function AccountOrders() {
                 </span>
               </div>
 
+              {/* Progress stepper */}
+              <div className="overflow-x-auto">
+                <StatusStepper status={detailOrder.status} />
+              </div>
+
+              {/* Tracking panel — always visible for shipped/delivered or if has tracking code */}
+              {(detailOrder.status === 'shipped' || detailOrder.status === 'delivered' || detailOrder.trackingCode) && (
+                <div>
+                  <h4 className="text-sm font-medium uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
+                    <Truck className="w-4 h-4" />
+                    Rastreamento
+                  </h4>
+                  <TrackingPanel orderId={detailOrder.id} />
+                </div>
+              )}
+
+              {/* Products */}
               <div>
                 <h4 className="text-sm font-medium uppercase tracking-widest text-gray-500 mb-3">Produtos</h4>
                 <div className="space-y-3">
@@ -373,6 +521,7 @@ export default function AccountOrders() {
                 </div>
               </div>
 
+              {/* Financial summary */}
               <div className="bg-gray-50 rounded-lg p-4 space-y-2">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500">Subtotal</span>
@@ -402,15 +551,14 @@ export default function AccountOrders() {
                     <span>-{formatCurrency(detailOrder.referredDiscountAmount)}</span>
                   </div>
                 )}
-                {/* Fallback: show combined if no breakdown */}
-                {(!detailOrder.couponDiscountAmount && !detailOrder.cashbackDiscountAmount && !detailOrder.referralDiscountAmount && !detailOrder.referredDiscountAmount) && detailOrder.discountAmount && parseFloat(detailOrder.discountAmount) > 0 && (
+                {!detailOrder.couponDiscountAmount && !detailOrder.cashbackDiscountAmount && !detailOrder.referralDiscountAmount && !detailOrder.referredDiscountAmount && detailOrder.discountAmount && parseFloat(detailOrder.discountAmount) > 0 && (
                   <div className="flex justify-between text-sm text-green-600">
                     <span>Desconto {detailOrder.couponCode && `(${detailOrder.couponCode})`}</span>
                     <span>-{formatCurrency(detailOrder.discountAmount)}</span>
                   </div>
                 )}
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Frete ({detailOrder.shippingMethod || 'Padrão'})</span>
+                  <span className="text-gray-500">Frete ({detailOrder.shippingMethod?.replace(/\[me:\d+\]/g, '').trim() || 'Padrão'})</span>
                   <span>{parseFloat(detailOrder.shippingCost || '0') > 0 ? formatCurrency(detailOrder.shippingCost || '0') : 'Grátis'}</span>
                 </div>
                 <div className="flex justify-between font-medium text-base pt-2 border-t border-gray-200">
@@ -419,6 +567,7 @@ export default function AccountOrders() {
                 </div>
               </div>
 
+              {/* Delivery address */}
               <div>
                 <h4 className="text-sm font-medium uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
@@ -431,25 +580,6 @@ export default function AccountOrders() {
                   {detailOrder.shippingPhone && <p className="mt-2 text-gray-500">{detailOrder.shippingPhone}</p>}
                 </div>
               </div>
-
-              {detailOrder.trackingCode && (
-                <div>
-                  <h4 className="text-sm font-medium uppercase tracking-widest text-gray-500 mb-3 flex items-center gap-2">
-                    <Truck className="w-4 h-4" />
-                    Rastreamento
-                  </h4>
-                  <a 
-                    href={`https://www.linkcorreios.com.br/?id=${detailOrder.trackingCode}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors rounded-lg p-4 font-mono text-sm"
-                    data-testid="link-tracking-code"
-                  >
-                    <Truck className="w-5 h-5" />
-                    {detailOrder.trackingCode}
-                  </a>
-                </div>
-              )}
 
               <div className="pt-4 border-t border-gray-100">
                 <Link href={`/account/support?order=${detailOrder.orderNumber || detailOrder.id.slice(0, 8)}`}>

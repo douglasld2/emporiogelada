@@ -538,6 +538,32 @@ export default function ProductPage() {
             {/* Accordion */}
             <div className="pt-2">
               <Accordion type="single" collapsible className="w-full">
+                {/* Ficha Técnica / Detalhes */}
+                {(product as any).productDetails && (
+                  <AccordionItem
+                    value="details"
+                    style={{ borderColor: "rgba(201,169,110,0.15)" }}
+                  >
+                    <AccordionTrigger
+                      className="text-xs uppercase tracking-widest font-normal py-4 hover:no-underline"
+                      style={{ color: "rgba(255,255,255,0.7)" }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <Package className="w-3.5 h-3.5" /> Ficha Técnica / Detalhes
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <div
+                        className="text-sm leading-relaxed whitespace-pre-line"
+                        style={{ color: "rgba(255,255,255,0.6)" }}
+                      >
+                        {(product as any).productDetails}
+                      </div>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {/* Entrega */}
                 <AccordionItem
                   value="delivery"
                   style={{ borderColor: "rgba(201,169,110,0.15)" }}
@@ -547,7 +573,7 @@ export default function ProductPage() {
                     style={{ color: "rgba(255,255,255,0.7)" }}
                   >
                     <span className="flex items-center gap-2">
-                      <Truck className="w-3.5 h-3.5" /> Entrega
+                      <Truck className="w-3.5 h-3.5" /> Envio e Devoluções
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>

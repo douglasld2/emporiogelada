@@ -1519,6 +1519,51 @@ export async function registerRoutes(
     }
   });
 
+  // Customer-facing tracking endpoint
+  app.get("/api/orders/:id/tracking", requireAuth, async (req, res, next) => {
+    try {
+      const order = await storage.getOrder(req.params.id);
+      if (!order) return res.status(404).json({ error: "Pedido não encontrado" });
+      const user = req.user as any;
+      if (order.userId !== user.id && user.role !== "admin") {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
+
+      const isME = !!(order as any).melhorEnvioCartId;
+      const trackingCode = order.trackingCode || (order as any).melhorEnvioProtocol || null;
+      const method = (order.shippingMethod || "").toLowerCase();
+
+      const carrier =
+        method.includes("jadlog") ? "Jadlog" :
+        method.includes("latam") ? "LATAM Cargo" :
+        method.includes("azul") ? "Azul Cargo" :
+        method.includes("loggi") ? "Loggi" :
+        method.includes("correios") ? "Correios" :
+        isME ? "Melhor Envio" : "Correios";
+
+      const trackingUrl = trackingCode
+        ? (isME || method.includes("jadlog") || method.includes("latam") || method.includes("azul")
+            ? buildMelhorEnvioTrackingUrl(trackingCode)
+            : `https://www.linkcorreios.com.br/?id=${trackingCode}`)
+        : null;
+
+      let events: any[] = [];
+      if (isME && (order as any).melhorEnvioCartId && isMelhorEnvioEnabled()) {
+        try {
+          const tracking = await getMelhorEnvioTracking([(order as any).melhorEnvioCartId]);
+          const result = Object.values(tracking)[0];
+          if (result) events = result.events || [];
+        } catch {
+          // silent — tracking events are optional
+        }
+      }
+
+      res.json({ trackingCode, trackingUrl, carrier, isME, events });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get("/api/orders/:id/items", requireAuth, async (req, res, next) => {
     try {
       const order = await storage.getOrder(req.params.id);

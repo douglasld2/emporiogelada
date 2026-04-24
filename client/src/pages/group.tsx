@@ -83,7 +83,7 @@ export default function GroupPage() {
             className="text-xs uppercase tracking-[0.4em] mb-4"
             style={{ color: "#c9a96e" }}
           >
-            {subgroups.length} {subgroups.length === 1 ? 'categoria' : 'categorias'}
+            {subgroups.length === 1 ? 'categoria' : 'categorias'}
           </motion.span>
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
