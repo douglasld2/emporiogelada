@@ -61,7 +61,6 @@ steps:
       # Carriers — flags de ativação
       - --set-env-vars=CORREIOS_LOCAL_ENABLED=false
       - --set-env-vars=LOGGI_ENABLED=false
-      - --set-env-vars=MELHOR_ENVIO_SANDBOX=true
 
       # ── Secrets (Secret Manager → variáveis de ambiente) ─────────────────
       # Crie cada secret com: gcloud secrets create NOME --data-file=-
