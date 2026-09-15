@@ -21,11 +21,11 @@ steps:
       - --network=default
       - --subnet=default
       - --vpc-egress=private-ranges-only
-      - --memory=256Mi
+      - --memory=512Mi
       - --cpu=1
       - --max-instances=1
       - --min-instances=0
-      - --concurrency=25
+      - --concurrency=50
 
       # ── Variáveis de ambiente (não sensíveis) ─────────────────────────────
       - --set-env-vars=NODE_ENV=production
@@ -33,7 +33,7 @@ steps:
       # Loja / pedidos
       - --set-env-vars=ORDER_PREFIX=EG
       - --set-env-vars=STORE_ORIGIN_ZIP=36015260
-      - --set-env-vars=URL_APP=https://SEU_DOMINIO_AQUI
+      - --set-env-vars=URL_APP=https://loja.emporigelada.com.br
 
       # Melhor Envio — comportamento
       - --set-env-vars=MELHOR_ENVIO_SANDBOX=true
