@@ -240,10 +240,10 @@ export default function ProductPage() {
     <div className="min-h-screen" style={{ backgroundColor: "#000000" }}>
       <Navigation forceDark />
 
-      <div className="flex flex-col lg:flex-row pt-20 lg:pt-0 min-h-screen">
+      <div className="site-content-offset flex flex-col lg:flex-row min-h-screen">
         {/* LEFT — Image Carousel */}
         <div
-          className="w-full lg:w-[55%] lg:sticky lg:top-0 lg:h-screen flex flex-col justify-center"
+          className="w-full lg:w-[58%] lg:sticky lg:top-20 lg:h-[calc(100vh-5rem)] flex flex-col justify-center"
           style={{ backgroundColor: "#0a0a0a" }}
         >
           {/* Embla swipeable carousel */}
@@ -255,26 +255,22 @@ export default function ProductPage() {
               {allImages.map((img, i) => (
                 <div
                   key={i}
-                  className="flex-[0_0_100%] min-w-0 flex items-center justify-center px-8 py-12 lg:py-16"
+                  className="flex-[0_0_100%] min-w-0 h-[62vh] lg:h-[calc(100vh-8.5rem)] flex items-center justify-center px-4 py-6 md:px-8 lg:px-10 lg:py-5"
                 >
                   <div
-                    className="relative w-full overflow-hidden rounded-2xl"
+                    className="relative w-full h-full flex items-center justify-center overflow-hidden"
                     style={{
-                      maxHeight: "65vh",
-                      boxShadow: "0 24px 64px rgba(0,0,0,0.6)",
+                      background: "radial-gradient(circle at center, rgba(255,255,255,0.055), transparent 68%)",
                     }}
                   >
                     <img
                       src={img}
                       alt={`${product.name} — foto ${i + 1}`}
-                      className="w-full h-full object-cover block"
-                      style={{ maxHeight: "65vh", objectPosition: "center" }}
+                      className="block max-w-full max-h-full w-auto h-auto object-contain"
+                      style={{
+                        filter: "drop-shadow(0 24px 38px rgba(0,0,0,0.55))",
+                      }}
                       draggable={false}
-                    />
-                    {/* Subtle gold rim */}
-                    <div
-                      className="absolute inset-0 rounded-2xl pointer-events-none"
-                      style={{ border: "1px solid rgba(201,169,110,0.12)" }}
                     />
                   </div>
                 </div>
@@ -312,7 +308,7 @@ export default function ProductPage() {
 
         {/* RIGHT — Info */}
         <div
-          className="w-full lg:w-[45%] lg:h-screen lg:overflow-y-auto"
+          className="w-full lg:w-[42%] lg:h-[calc(100vh-5rem)] lg:overflow-y-auto"
           style={{ backgroundColor: "#000000" }}
         >
           <div className="p-8 lg:p-14 flex flex-col min-h-full">

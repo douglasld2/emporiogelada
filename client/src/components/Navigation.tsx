@@ -49,15 +49,22 @@ export function Navigation({ forceDark }: NavigationProps) {
   return (
     <>
       <nav
-        className={`fixed top-0 left-0 right-0 z-40 pointer-events-none ${
+        className={`site-navigation fixed top-0 left-0 right-0 z-40 pointer-events-none ${
           isNavVisible ? "translate-y-0 opacity-100" : "-translate-y-full opacity-0"
         } ${
           isDark
-            ? "py-6 border-b border-white/10"
+            ? "py-3 md:py-4 border-b border-white/10"
             : "py-4 bg-white border-b border-gray-200"
         }`}
         style={{
-          ...(isDark ? { backgroundColor: "rgba(0,0,0,0.72)", backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" } : {}),
+          ...(isDark ? {
+            background:
+              "linear-gradient(#000000, #000000) top / 100% env(safe-area-inset-top, 0px) no-repeat, linear-gradient(180deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.84) 58%, rgba(0,0,0,0.74) 100%)",
+            backdropFilter: "blur(18px) saturate(75%)",
+            WebkitBackdropFilter: "blur(18px) saturate(75%)",
+            boxShadow:
+              "0 1px 0 rgba(255,255,255,0.07), 0 12px 24px rgba(0,0,0,0.3)",
+          } : {}),
           transition: "transform 300ms ease, opacity 300ms ease",
         }}
       >

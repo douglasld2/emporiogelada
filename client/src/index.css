@@ -114,9 +114,13 @@
   html, body {
     background-color: #000000; /* Prevents white flash on overscroll and initial load (mobile) */
   }
+  html {
+    color-scheme: dark;
+  }
   body {
     @apply font-sans antialiased text-foreground;
     overflow-x: hidden; /* Prevent horizontal scroll from animations */
+    min-height: 100dvh;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-serif tracking-tight;
@@ -124,6 +128,37 @@
 }
 
 @layer utilities {
+  .site-navigation {
+    padding-top: calc(0.75rem + env(safe-area-inset-top, 0px));
+    isolation: isolate;
+  }
+
+  .site-navigation::after {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    left: 0;
+    right: 0;
+    bottom: -14px;
+    height: 14px;
+    pointer-events: none;
+    background: linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.38),
+      rgba(0, 0, 0, 0)
+    );
+  }
+
+  .site-content-offset {
+    padding-top: calc(5rem + env(safe-area-inset-top, 0px));
+  }
+
+  @media (min-width: 768px) {
+    .site-navigation {
+      padding-top: calc(1rem + env(safe-area-inset-top, 0px));
+    }
+  }
+
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
