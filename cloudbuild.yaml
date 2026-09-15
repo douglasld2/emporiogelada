@@ -37,7 +37,7 @@ steps:
       - --set-env-vars=URL_APP=https://SEU_DOMINIO_AQUI
 
       # Melhor Envio — comportamento
-      - --set-env-vars=MELHOR_ENVIO_SANDBOX=false
+      - --set-env-vars=MELHOR_ENVIO_SANDBOX=true
       - --set-env-vars=MELHOR_ENVIO_COLLECT=false
       # - --set-env-vars=MELHOR_ENVIO_COLLECT_DATE=2025-01-01   # ativar se quiser data fixa
 
@@ -61,7 +61,6 @@ steps:
       # Carriers — flags de ativação
       - --set-env-vars=CORREIOS_LOCAL_ENABLED=false
       - --set-env-vars=LOGGI_ENABLED=false
-      - --set-env-vars=MELHOR_ENVIO_SANDBOX=true
 
       # ── Secrets (Secret Manager → variáveis de ambiente) ─────────────────
       # Crie cada secret com: gcloud secrets create NOME --data-file=-
