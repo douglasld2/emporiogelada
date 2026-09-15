@@ -29,7 +29,6 @@ steps:
 
       # ── Variáveis de ambiente (não sensíveis) ─────────────────────────────
       - --set-env-vars=NODE_ENV=production
-      - --set-env-vars=PORT=5000
 
       # Loja / pedidos
       - --set-env-vars=ORDER_PREFIX=EG
