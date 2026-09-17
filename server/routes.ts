@@ -2444,6 +2444,14 @@ export async function registerRoutes(
       const preference = await createPaymentPreference({
         items: mpItems,
         external_reference: externalReference,
+        payer: payer
+          ? {
+              email: payer.email,
+              name: payer.name?.trim().split(/\s+/)[0],
+              surname:
+                payer.name?.trim().split(/\s+/).slice(1).join(" ") || undefined,
+            }
+          : undefined,
       });
 
       // Check if user is authenticated
@@ -2698,6 +2706,13 @@ export async function registerRoutes(
       const preference = await createPaymentPreference({
         items: preferenceItems,
         external_reference: externalReference,
+        payer: {
+          email: payment.payerEmail || undefined,
+          name: payment.payerName?.trim().split(/\s+/)[0],
+          surname:
+            payment.payerName?.trim().split(/\s+/).slice(1).join(" ") ||
+            undefined,
+        },
       });
 
       // Update the existing payment with new preference

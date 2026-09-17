@@ -20,6 +20,7 @@ export interface CreatePreferenceData {
   payer?: {
     email?: string;
     name?: string;
+    surname?: string;
   };
   external_reference?: string;
   notification_url?: string;
@@ -34,9 +35,14 @@ export async function createPaymentPreference(data: CreatePreferenceData) {
   const client = getClient();
   const preference = new Preference(client);
 
-  const baseUrl = process.env.REPLIT_DEV_DOMAIN
-    ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-    : `https://${process.env.URL_APP}` || "http://localhost:5000";
+  const configuredAppUrl = process.env.URL_APP?.trim().replace(/\/+$/, "");
+  const baseUrl = configuredAppUrl
+    ? /^https?:\/\//i.test(configuredAppUrl)
+      ? configuredAppUrl
+      : `https://${configuredAppUrl}`
+    : process.env.REPLIT_DEV_DOMAIN
+      ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+      : "http://localhost:5000";
 
   const result = await preference.create({
     body: {
@@ -52,6 +58,7 @@ export async function createPaymentPreference(data: CreatePreferenceData) {
         ? {
             email: data.payer.email,
             name: data.payer.name,
+            surname: data.payer.surname,
           }
         : undefined,
       external_reference: data.external_reference,
