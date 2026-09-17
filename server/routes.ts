@@ -1493,7 +1493,7 @@ export async function registerRoutes(
   app.get("/api/orders/stats", requireAuth, async (req, res, next) => {
     try {
       const user = req.user as any;
-      const stats = await storage.getUserOrderStats(user.id);
+      const stats = await storage.getUserOrderStats(user.id, user.email);
       res.json(stats);
     } catch (error) {
       next(error);
@@ -1508,7 +1508,10 @@ export async function registerRoutes(
       }
 
       const user = req.user as any;
-      if (order.userId !== user.id && user.role !== "admin") {
+      const belongsToUser =
+        order.userId === user.id ||
+        order.shippingEmail?.toLowerCase() === user.email?.toLowerCase();
+      if (!belongsToUser && user.role !== "admin") {
         return res.status(403).json({ error: "Access denied" });
       }
 
@@ -1525,7 +1528,10 @@ export async function registerRoutes(
       const order = await storage.getOrder(req.params.id);
       if (!order) return res.status(404).json({ error: "Pedido não encontrado" });
       const user = req.user as any;
-      if (order.userId !== user.id && user.role !== "admin") {
+      const belongsToUser =
+        order.userId === user.id ||
+        order.shippingEmail?.toLowerCase() === user.email?.toLowerCase();
+      if (!belongsToUser && user.role !== "admin") {
         return res.status(403).json({ error: "Acesso negado" });
       }
 
@@ -1572,7 +1578,10 @@ export async function registerRoutes(
       }
 
       const user = req.user as any;
-      if (order.userId !== user.id && user.role !== "admin") {
+      const belongsToUser =
+        order.userId === user.id ||
+        order.shippingEmail?.toLowerCase() === user.email?.toLowerCase();
+      if (!belongsToUser && user.role !== "admin") {
         return res.status(403).json({ error: "Access denied" });
       }
 

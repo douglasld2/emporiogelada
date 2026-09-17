@@ -81,7 +81,7 @@ export interface IStorage {
     labelUrl?: string | null;
     trackingCode?: string;
   }): Promise<Order | undefined>;
-  getUserOrderStats(userId: string): Promise<{ total: number; shipped: number; delivered: number }>;
+  getUserOrderStats(userId: string, userEmail?: string): Promise<{ total: number; shipped: number; delivered: number }>;
   
   createPayment(payment: InsertPayment): Promise<Payment>;
   getPayment(id: string): Promise<Payment | undefined>;
@@ -451,7 +451,12 @@ export class DatabaseStorage implements IStorage {
       return await db
         .select()
         .from(orders)
-        .where(or(eq(orders.userId, userId), eq(orders.shippingEmail, userEmail)))
+        .where(
+          or(
+            eq(orders.userId, userId),
+            sql`lower(${orders.shippingEmail}) = lower(${userEmail})`,
+          ),
+        )
         .orderBy(desc(orders.createdAt));
     }
     return await db
@@ -477,8 +482,14 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(orderItems).where(eq(orderItems.orderId, orderId));
   }
 
-  async getUserOrderStats(userId: string): Promise<{ total: number; shipped: number; delivered: number }> {
-    const userOrders = await db.select().from(orders).where(eq(orders.userId, userId));
+  async getUserOrderStats(userId: string, userEmail?: string): Promise<{ total: number; shipped: number; delivered: number }> {
+    const ownershipCondition = userEmail
+      ? or(
+          eq(orders.userId, userId),
+          sql`lower(${orders.shippingEmail}) = lower(${userEmail})`,
+        )
+      : eq(orders.userId, userId);
+    const userOrders = await db.select().from(orders).where(ownershipCondition);
     return {
       total: userOrders.length,
       shipped: userOrders.filter(o => o.status === 'shipped' || o.status === 'processing').length,

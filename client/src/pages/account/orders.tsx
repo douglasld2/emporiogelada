@@ -252,7 +252,12 @@ export default function AccountOrders() {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  const { data: orderDetailsData, isLoading: detailsLoading } = useQuery<OrderDetailsResponse>({
+  const {
+    data: orderDetailsData,
+    isLoading: detailsLoading,
+    isError: detailsError,
+    refetch: refetchOrderDetails,
+  } = useQuery<OrderDetailsResponse>({
     queryKey: ['orderDetails', selectedOrderId],
     queryFn: async () => {
       if (!selectedOrderId) throw new Error('No order selected');
@@ -472,6 +477,22 @@ export default function AccountOrders() {
             <div className="py-8 text-center">
               <Loader2 className="w-6 h-6 animate-spin mx-auto text-gray-400" />
               <p className="text-sm text-gray-500 mt-2">Carregando...</p>
+            </div>
+          ) : detailsError ? (
+            <div className="py-8 text-center">
+              <AlertCircle className="w-8 h-8 mx-auto text-red-500 mb-3" />
+              <p className="font-medium text-gray-900">Não foi possível carregar o pedido</p>
+              <p className="text-sm text-gray-500 mt-1 mb-4">
+                Atualize os detalhes ou tente novamente em instantes.
+              </p>
+              <Button
+                variant="outline"
+                onClick={() => refetchOrderDetails()}
+                className="rounded-lg"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Tentar novamente
+              </Button>
             </div>
           ) : detailOrder ? (
             <div className="space-y-6">

@@ -36,7 +36,7 @@ steps:
       - --set-env-vars=URL_APP=https://loja.emporiogelada.com.br
 
       # Melhor Envio — comportamento
-      - --set-env-vars=MELHOR_ENVIO_SANDBOX=false
+      - --set-env-vars=MELHOR_ENVIO_SANDBOX=true
       - --set-env-vars=MELHOR_ENVIO_COLLECT=false
       # - --set-env-vars=MELHOR_ENVIO_COLLECT_DATE=2025-01-01   # ativar se quiser data fixa
 
