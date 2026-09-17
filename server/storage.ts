@@ -614,7 +614,7 @@ export class DatabaseStorage implements IStorage {
     return updated || undefined;
   }
 
-  async createPayment(payment: InsertPayment): Promise<Payment> {
+  async createPayment(payment: InsertPayment & { id?: string }): Promise<Payment> {
     const [newPayment] = await db
       .insert(payments)
       .values(payment)

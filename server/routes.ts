@@ -2120,7 +2120,9 @@ export async function registerRoutes(
       }
 
       const validatedItems: Array<{
+        id: string;
         title: string;
+        description: string;
         quantity: number;
         unit_price: number;
         productId: string;
@@ -2156,7 +2158,9 @@ export async function registerRoutes(
           }
           subtotal += kitInfo.price * quantity;
           validatedItems.push({
+            id: `kit_${item.kitId}`,
             title: kitInfo.name,
+            description: `Kit ${kitInfo.name} com produtos selecionados do Empório Gelada`,
             quantity,
             unit_price: kitInfo.price,
             productId: product.id,
@@ -2166,7 +2170,15 @@ export async function registerRoutes(
           const { effectivePrice: prefEffPrice } = calcEffectivePrice(product, activePromosPref, collGroupMapPref, item.selectedSize);
           subtotal += prefEffPrice * quantity;
           validatedItems.push({
+            id: product.id,
             title: product.name,
+            description: [
+              product.description || product.name,
+              item.selectedSize ? `Variação: ${item.selectedSize}` : null,
+            ]
+              .filter(Boolean)
+              .join(" — ")
+              .slice(0, 256),
             quantity,
             unit_price: prefEffPrice,
             productId: product.id,
@@ -2337,11 +2349,16 @@ export async function registerRoutes(
       // Calculate final total
       const serverTotal = Math.max(0, subtotal - discountAmount - totalCrmDiscount + shippingCost);
 
-      const externalReference = `order_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      // Use the internal payment UUID as Mercado Pago's external reference so
+      // webhook payment IDs can always be correlated to our payment record.
+      const internalPaymentId = crypto.randomUUID();
+      const externalReference = internalPaymentId;
 
       // Build items array - always show each product individually on MP's checkout page
       let mpItems: Array<{
+        id: string;
         title: string;
+        description: string;
         quantity: number;
         unit_price: number;
         currency_id: string;
@@ -2375,7 +2392,9 @@ export async function registerRoutes(
             : item.title;
 
           return {
+            id: item.id,
             title,
+            description: item.description,
             quantity: 1,
             unit_price: discountedCents / 100,
             currency_id: "BRL",
@@ -2383,7 +2402,9 @@ export async function registerRoutes(
         });
       } else {
         mpItems = validatedItems.map((item) => ({
+          id: item.id,
           title: item.quantity > 1 ? `${item.title} (x${item.quantity})` : item.title,
+          description: item.description,
           quantity: item.quantity,
           unit_price: item.unit_price,
           currency_id: "BRL",
@@ -2393,7 +2414,9 @@ export async function registerRoutes(
       // Add shipping as a separate item if cost > 0
       if (shippingCost > 0) {
         mpItems.push({
+          id: "shipping",
           title: `Frete (${shippingMethod || "PAC"})`,
+          description: `Entrega do pedido via ${shippingMethod || "PAC"}`,
           quantity: 1,
           unit_price: shippingCost,
           currency_id: "BRL",
@@ -2452,6 +2475,7 @@ export async function registerRoutes(
       });
 
       const payment = await storage.createPayment({
+        id: internalPaymentId,
         orderId: null,
         preferenceId: preference.id || null,
         status: "pending",
@@ -2528,7 +2552,9 @@ export async function registerRoutes(
 
       // Use saved prices from original order to ensure consistency
       const validatedItems: Array<{
+        id: string;
         title: string;
+        description: string;
         quantity: number;
         unit_price: number;
         productId: string;
@@ -2552,7 +2578,15 @@ export async function registerRoutes(
         const savedPrice = parseFloat(item.price);
         subtotal += savedPrice * quantity;
         validatedItems.push({
+          id: product.id,
           title: item.productName || product.name,
+          description: [
+            product.description || item.productName || product.name,
+            item.selectedSize ? `Variação: ${item.selectedSize}` : null,
+          ]
+            .filter(Boolean)
+            .join(" — ")
+            .slice(0, 256),
           quantity,
           unit_price: savedPrice,
           productId: product.id,
@@ -2580,11 +2614,14 @@ export async function registerRoutes(
         finalSubtotal - discountAmount + shippingCost,
       );
 
-      const externalReference = `order_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      // A retry still refers to the same internal payment record.
+      const externalReference = payment.id;
 
       // Build items array - always show each product individually on MP's checkout page
       let preferenceItems: Array<{
+        id: string;
         title: string;
+        description: string;
         quantity: number;
         unit_price: number;
         currency_id: string;
@@ -2610,7 +2647,9 @@ export async function registerRoutes(
           }
 
           return {
+            id: item.id,
             title: item.quantity > 1 ? `${item.title} (x${item.quantity})` : item.title,
+            description: item.description,
             quantity: 1,
             unit_price: discountedCents / 100,
             currency_id: "BRL",
@@ -2618,7 +2657,9 @@ export async function registerRoutes(
         });
       } else {
         preferenceItems = validatedItems.map((item) => ({
+          id: item.id,
           title: item.quantity > 1 ? `${item.title} (x${item.quantity})` : item.title,
+          description: item.description,
           quantity: item.quantity,
           unit_price: item.unit_price,
           currency_id: "BRL",
@@ -2627,7 +2668,9 @@ export async function registerRoutes(
 
       if (shippingCost > 0) {
         preferenceItems.push({
+          id: "shipping",
           title: `Frete (${shippingMethod || "Padrão"})`,
+          description: `Entrega do pedido via ${shippingMethod || "Padrão"}`,
           quantity: 1,
           unit_price: shippingCost,
           currency_id: "BRL",

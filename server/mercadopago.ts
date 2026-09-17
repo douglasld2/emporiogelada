@@ -10,7 +10,9 @@ const getClient = () => {
 
 export interface CreatePreferenceData {
   items: Array<{
+    id: string;
     title: string;
+    description: string;
     quantity: number;
     unit_price: number;
     currency_id?: string;
@@ -39,8 +41,9 @@ export async function createPaymentPreference(data: CreatePreferenceData) {
   const result = await preference.create({
     body: {
       items: data.items.map((item) => ({
-        id: Math.random().toString(36).substring(7),
+        id: item.id,
         title: item.title,
+        description: item.description,
         quantity: item.quantity,
         unit_price: item.unit_price,
         currency_id: item.currency_id || "BRL",
